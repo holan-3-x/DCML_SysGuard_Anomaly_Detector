@@ -77,17 +77,28 @@ def draw_graph(history, width=30, height=8):
     return "\n".join(output)
 def identify_root_cause(X_scaled, features) -> str:
     """
-    Finds which category has the highest deviation (simple feature importance).
+    Sums absolute z-scores per category with heuristic weighting.
     """
-    # X_scaled is 1D array of scaled values
-    abs_scaled = np.abs(X_scaled[0])
-    max_idx = np.argmax(abs_scaled)
-    feature_name = features[max_idx].lower()
+    vals = np.abs(X_scaled[0])
+    sums = {"CPU": 0.0, "MEMORY": 0.0, "DISK": 0.0, "NETWORK": 0.0}
     
-    if 'virtual' in feature_name or 'swap' in feature_name: return "MEMORY"
-    if 'disk' in feature_name: return "DISK"
-    if 'net' in feature_name: return "NETWORK"
-    return "CPU"
+    for i, name in enumerate(features):
+        name = name.lower()
+        v = vals[i]
+        
+        if 'virtual' in name or 'swap' in name or 'mem' in name:
+            sums["MEMORY"] += v
+        elif 'disk' in name:
+            # Disk spikes are less common than CPU, favor them slightly less in tie-breakers
+            sums["DISK"] += v * 0.8 
+        elif 'net' in name:
+            # Network is highly volatile, give it a lower weight to avoid false claims
+            sums["NETWORK"] += v * 0.5
+        else:
+            # Core loads/times are direct evidence of CPU stress
+            sums["CPU"] += v * 1.5 
+            
+    return max(sums, key=sums.get)
 
 def check_keys(active_filters):
     """

@@ -4,19 +4,19 @@
 
 | Rank | Model | Type | F1-Score | Accuracy | TP | TN | FP | FN | File |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 🥇 | **RandomForest** | supervised | 0.8571 | 0.8609 | 63 | 67 | 12 | 9 | `archive/RandomForest.bin` |
-| 🥈 | **GradientBoosting** | supervised | 0.8252 | 0.8344 | 59 | 67 | 12 | 13 | `archive/GradientBoosting.bin` |
-| 🥉 | **SVM_RBF** | supervised | 0.7500 | 0.7748 | 51 | 66 | 13 | 21 | `archive/SVM_RBF.bin` |
-| 4 | **KNN** | supervised | 0.7402 | 0.7815 | 47 | 71 | 8 | 25 | `archive/KNN.bin` |
-| 5 | **NeuralNetwork** | supervised | 0.7200 | 0.7219 | 54 | 55 | 24 | 18 | `archive/NeuralNetwork.bin` |
-| 6 | **SVM_Linear** | supervised | 0.6957 | 0.7219 | 48 | 61 | 18 | 24 | `archive/SVM_Linear.bin` |
-| 7 | **LogisticRegression** | supervised | 0.6906 | 0.7152 | 48 | 60 | 19 | 24 | `archive/LogisticRegression.bin` |
-| 8 | **LDA** | supervised | 0.6718 | 0.7152 | 44 | 64 | 15 | 28 | `archive/LDA.bin` |
-| 9 | **DecisionTree** | supervised | 0.6525 | 0.6755 | 46 | 56 | 23 | 26 | `archive/DecisionTree.bin` |
-| 10 | **NaiveBayes** | supervised | 0.6387 | 0.7152 | 38 | 70 | 9 | 34 | `archive/NaiveBayes.bin` |
-| 11 | **OneClassSVM** | unsupervised | 0.5517 | 0.6556 | 32 | 67 | 12 | 40 | `archive/OneClassSVM.bin` |
-| 12 | **IsolationForest** | unsupervised | 0.5091 | 0.6424 | 28 | 69 | 10 | 44 | `archive/IsolationForest.bin` |
-| 13 | **LocalOutlierFactor** | unsupervised | 0.2326 | 0.5629 | 10 | 75 | 4 | 62 | `archive/LocalOutlierFactor.bin` |
+| 🥇 | **GradientBoosting** | supervised | 0.8344 | 0.8366 | 63 | 65 | 6 | 19 | `archive/GradientBoosting.bin` |
+| 🥈 | **DecisionTree** | supervised | 0.8228 | 0.8170 | 65 | 60 | 11 | 17 | `archive/DecisionTree.bin` |
+| 🥉 | **RandomForest** | supervised | 0.8138 | 0.8235 | 59 | 67 | 4 | 23 | `archive/RandomForest.bin` |
+| 4 | **SVM_RBF** | supervised | 0.7626 | 0.7843 | 53 | 67 | 4 | 29 | `archive/SVM_RBF.bin` |
+| 5 | **KNN** | supervised | 0.7556 | 0.7843 | 51 | 69 | 2 | 31 | `archive/KNN.bin` |
+| 6 | **NeuralNetwork** | supervised | 0.7465 | 0.7647 | 53 | 64 | 7 | 29 | `archive/NeuralNetwork.bin` |
+| 7 | **LDA** | supervised | 0.7338 | 0.7582 | 51 | 65 | 6 | 31 | `archive/LDA.bin` |
+| 8 | **NaiveBayes** | supervised | 0.7059 | 0.7386 | 48 | 65 | 6 | 34 | `archive/NaiveBayes.bin` |
+| 9 | **SVM_Linear** | supervised | 0.6950 | 0.7190 | 49 | 61 | 10 | 33 | `archive/SVM_Linear.bin` |
+| 10 | **LogisticRegression** | supervised | 0.6667 | 0.7059 | 45 | 63 | 8 | 37 | `archive/LogisticRegression.bin` |
+| 11 | **IsolationForest** | unsupervised | 0.5500 | 0.6471 | 33 | 66 | 5 | 49 | `archive/IsolationForest.bin` |
+| 12 | **OneClassSVM** | unsupervised | 0.5470 | 0.6536 | 32 | 68 | 3 | 50 | `archive/OneClassSVM.bin` |
+| 13 | **LocalOutlierFactor** | unsupervised | 0.0471 | 0.4706 | 2 | 70 | 1 | 80 | `archive/LocalOutlierFactor.bin` |
 
 
 ### Metrics Breakdown

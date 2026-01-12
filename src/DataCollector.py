@@ -15,6 +15,13 @@ from typing import List
 
 from Simulator import BaseSimulator, current_ms
 
+# Global cache for differential telemetry
+_prev_stats = {
+    'time': time.time(),
+    'disk_io': None,
+    'net_io': None
+}
+
 def read_scenarios(json_path, inj_duration: int = 2, verbose: bool = True, n_inj: int = -1) -> List[BaseSimulator]:
     """
     Method to read a JSON file and extract simulation scenarios
@@ -77,17 +84,39 @@ def monitor_system() -> dict:
     # Deep Memory & Swap
     ret_dict.update({'swap_'+k: v for k, v in psutil.swap_memory()._asdict().items()})
     
-    # Deep Disk Telemetry
-    disk_usage = psutil.disk_usage('/')._asdict()
-    disk_io = psutil.disk_io_counters()._asdict()
-    ret_dict.update({'disk_usage_'+k: v for k, v in disk_usage.items()})
-    ret_dict.update({'disk_io_'+k: v for k, v in disk_io.items()})
+    global _prev_stats
     
-    # Deep Network Telemetry
-    net_io = psutil.net_io_counters()._asdict()
-    ret_dict.update({'net_io_'+k: v for k, v in net_io.items()})
+    # 1. Differential Disk Telemetry
+    disk_usage = psutil.disk_usage('/')._asdict()
+    current_disk_io = psutil.disk_io_counters()._asdict()
+    
+    dt = now - _prev_stats['time']
+    if dt <= 0: dt = 0.001 # Prevent div by zero
+    
+    if _prev_stats['disk_io'] is None:
+        # First run: Initialize with 0 rates
+        disk_rates = {f'disk_io_{k}_rate': 0.0 for k in current_disk_io.keys()}
+    else:
+        disk_rates = {f'disk_io_{k}_rate': (current_disk_io[k] - _prev_stats['disk_io'][k]) / dt for k in current_disk_io.keys()}
+        
+    ret_dict.update({'disk_usage_'+k: v for k, v in disk_usage.items()})
+    ret_dict.update(disk_rates)
+    
+    # 2. Differential Network Telemetry
+    current_net_io = psutil.net_io_counters()._asdict()
+    if _prev_stats['net_io'] is None:
+        net_rates = {f'net_io_{k}_rate': 0.0 for k in current_net_io.keys()}
+    else:
+        net_rates = {f'net_io_{k}_rate': (current_net_io[k] - _prev_stats['net_io'][k]) / dt for k in current_net_io.keys()}
+    
+    ret_dict.update(net_rates)
 
-    # Count active connections as a feature (requires permissions on some systems)
+    # Update cache for next step
+    _prev_stats['time'] = now
+    _prev_stats['disk_io'] = current_disk_io
+    _prev_stats['net_io'] = current_net_io
+
+    # Count active connections as a feature
     try:
         ret_dict['net_connections_count'] = len(psutil.net_connections(kind='inet'))
     except Exception:

@@ -1,9 +1,13 @@
 #include "common.h"
+#include <ifaddrs.h>
 #include <mach/mach.h>
 #include <mach/mach_host.h>
 #include <mach/processor_info.h>
+#include <net/if.h>
+#include <net/if_dl.h>
+#include <net/if_types.h>
+#include <net/if_var.h>
 #include <sys/sysctl.h>
-#include <sys/vmmeter.h>
 
 static processor_cpu_load_info_t prev_cpu_load = NULL;
 static mach_msg_type_number_t prev_cpu_msg_count = 0;
@@ -36,12 +40,9 @@ void get_cpu_stats(SystemStats *stats) {
       }
     }
     stats->cpu_total_load = total_all / processor_count;
-
-    // Cleanup old
     vm_deallocate(mach_task_self(), (vm_address_t)prev_cpu_load,
                   prev_cpu_msg_count * sizeof(int));
   }
-
   prev_cpu_load = cpu_load;
   prev_cpu_msg_count = cpu_msg_count;
 }
@@ -51,7 +52,6 @@ void get_mem_stats(SystemStats *stats) {
   mach_port_t host_port = mach_host_self();
   mach_msg_type_number_t count = HOST_VM_INFO64_COUNT;
   vm_statistics64_data_t vm_stats;
-
   host_page_size(host_port, &page_size);
   if (host_statistics64(host_port, HOST_VM_INFO64, (host_info64_t)&vm_stats,
                         &count) == KERN_SUCCESS) {
@@ -59,7 +59,6 @@ void get_mem_stats(SystemStats *stats) {
     uint64_t active_mem = (uint64_t)vm_stats.active_count * page_size;
     uint64_t inactive_mem = (uint64_t)vm_stats.inactive_count * page_size;
     uint64_t wire_mem = (uint64_t)vm_stats.wire_count * page_size;
-
     stats->mem_used = active_mem + inactive_mem + wire_mem;
     stats->mem_free = free_mem;
     stats->mem_percent =
@@ -67,35 +66,48 @@ void get_mem_stats(SystemStats *stats) {
   }
 }
 
-int main() {
-  printf("🚀 Starting C-HyperMonitor (Zero-Overhead)...\n");
-  FILE *f = fopen(DATA_FILE, "w");
-  fprintf(f, "Timestamp,UserReadTime,CPU_Total,Mem_Percent,Injector\n");
+void get_net_stats(SystemStats *stats) {
+  struct ifaddrs *ifa_list, *ifa;
+  if (getifaddrs(&ifa_list) < 0)
+    return;
+  uint64_t ibytes = 0, obytes = 0;
+  for (ifa = ifa_list; ifa; ifa = ifa->ifa_next) {
+    if (ifa->ifa_addr->sa_family == AF_LINK) {
+      struct if_data *ifd = (struct if_data *)ifa->ifa_data;
+      ibytes += ifd->ifi_ibytes;
+      obytes += ifd->ifi_obytes;
+    }
+  }
+  stats->net_in = ibytes;
+  stats->net_out = obytes;
+  freeifaddrs(ifa_list);
+}
 
+int main() {
+  printf("🚀 Starting C-HyperMonitor-v2 (Multi-Category)...\n");
+  FILE *f = fopen("monitored_data_c_v2.csv", "w");
+  fprintf(
+      f,
+      "Timestamp,UserReadTime,CPU_Total,Mem_Percent,Net_In,Net_Out,Injector\n");
   SystemStats stats;
   memset(&stats, 0, sizeof(stats));
   strcpy(stats.injector, "rest");
-
   for (int i = 0; i < 50; i++) {
     time_t now = time(NULL);
-    struct tm *tm_info = localtime(&now);
-    strftime(stats.user_read_time, 32, "%Y-%m-%d %H:%M:%S", tm_info);
+    strftime(stats.user_read_time, 32, "%Y-%m-%d %H:%M:%S", localtime(&now));
     stats.timestamp = (double)now;
-
     get_cpu_stats(&stats);
     get_mem_stats(&stats);
-
-    printf("[%s] CPU: %.1f%% | RAM: %.1f%% | Cause: %s\n", stats.user_read_time,
-           stats.cpu_total_load, stats.mem_percent, stats.injector);
-
-    fprintf(f, "%.3f,%s,%.2f,%.2f,%s\n", stats.timestamp, stats.user_read_time,
-            stats.cpu_total_load, stats.mem_percent, stats.injector);
+    get_net_stats(&stats);
+    printf("[%s] CPU: %.1f%% | RAM: %.1f%% | Net: %.1fMB | Cause: %s\n",
+           stats.user_read_time, stats.cpu_total_load, stats.mem_percent,
+           (double)stats.net_in / 1e6, stats.injector);
+    fprintf(f, "%.3f,%s,%.2f,%.2f,%llu,%llu,%s\n", stats.timestamp,
+            stats.user_read_time, stats.cpu_total_load, stats.mem_percent,
+            stats.net_in, stats.net_out, stats.injector);
     fflush(f);
-
-    usleep(500000); // 500ms
+    usleep(500000);
   }
-
   fclose(f);
-  printf("✅ C-Monitoring complete. Data saved to %s\n", DATA_FILE);
   return 0;
 }
