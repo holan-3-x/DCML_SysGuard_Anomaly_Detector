@@ -1,0 +1,16 @@
+cpu-load-generator
+joblib
+numpy
+pandas
+psutil
+python-dateutil
+pytz
+scikit-learn
+scipy
+six
+threadpoolctl
+tqdm
+tzdata
+requests
+matplotlib
+seaborn
