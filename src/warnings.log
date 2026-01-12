@@ -1937,3 +1937,16 @@
 [2026-01-12 16:36:33] CRITICAL: Anomaly detected! Cause: MEMORY | Conf: 0.6900 | Threat Level: 941
 [2026-01-12 16:36:34] CRITICAL: Anomaly detected! Cause: MEMORY | Conf: 0.6500 | Threat Level: 943
 [2026-01-12 16:36:34] CRITICAL: Anomaly detected! Cause: MEMORY | Conf: 0.6300 | Threat Level: 945
+[2026-01-12 16:36:35] CRITICAL: Anomaly detected! Cause: MEMORY | Conf: 0.6200 | Threat Level: 947
+[2026-01-12 16:36:35] CRITICAL: Anomaly detected! Cause: MEMORY | Conf: 0.6000 | Threat Level: 948
+[2026-01-12 16:36:35] CRITICAL: Anomaly detected! Cause: MEMORY | Conf: 0.6800 | Threat Level: 950
+[2026-01-12 16:36:36] CRITICAL: Anomaly detected! Cause: CLEAN | Conf: 0.5000 | Threat Level: 947
+[2026-01-12 16:36:36] CRITICAL: Anomaly detected! Cause: MEMORY | Conf: 0.7500 | Threat Level: 949
+[2026-01-12 16:36:36] CRITICAL: Anomaly detected! Cause: MEMORY | Conf: 0.5800 | Threat Level: 950
+[2026-01-12 16:36:37] CRITICAL: Anomaly detected! Cause: MEMORY | Conf: 0.5500 | Threat Level: 951
+[2026-01-12 16:36:37] CRITICAL: Anomaly detected! Cause: MEMORY | Conf: 0.7000 | Threat Level: 953
+[2026-01-12 16:36:38] CRITICAL: Anomaly detected! Cause: MEMORY | Conf: 0.7200 | Threat Level: 955
+[2026-01-12 16:36:38] CRITICAL: Anomaly detected! Cause: MEMORY | Conf: 0.6700 | Threat Level: 957
+[2026-01-12 16:36:38] CRITICAL: Anomaly detected! Cause: MEMORY | Conf: 0.6700 | Threat Level: 959
+[2026-01-12 16:36:39] CRITICAL: Anomaly detected! Cause: MEMORY | Conf: 0.7300 | Threat Level: 961
+[2026-01-12 16:36:39] CRITICAL: Anomaly detected! Cause: CLEAN | Conf: 0.4800 | Threat Level: 958
