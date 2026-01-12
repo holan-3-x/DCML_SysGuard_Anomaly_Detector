@@ -62,6 +62,36 @@ cd src_c && ./simulator cpu
 
 ---
 
+## ⚡ C-Language Hyper-Suite (Low-Level Performance)
+For when you need the absolute maximum speed and minimum overhead on your M4 Pro.
+
+### 1. Build the Suite
+```bash
+cd src_c
+make clean && make
+```
+
+### 2. High-Frequency Monitoring
+Runs a zero-overhead telemetry loop directly through the Mach Kernel.
+```bash
+./src_c/monitor
+```
+
+### 3. Real-time C Inference
+Executes a ultra-low latency statistical detection engine.
+```bash
+./src_c/engine
+```
+
+### 4. Native Stress Simulator
+Trigger ARM-optimized load simulations.
+```bash
+./src_c/simulator cpu  # Target all cores
+./src_c/simulator ram  # Saturate memory controller
+```
+
+---
+
 ## ⚡ Python vs C Implementation
 
 | Feature | Python (Standard) | C (Hyper-Suite) |
