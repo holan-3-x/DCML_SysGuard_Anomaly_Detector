@@ -44,13 +44,7 @@ This project aims to:
 
 ### 1.3 Scope
 
-The system is specifically optimized for Apple Silicon (M4 Pro) but the methodology is transferable to other platforms. This report covers:
-
-- Data collection methodology
-- Feature engineering decisions
-- Model training and selection
-- Real-time inference architecture
-- Comparative analysis of Python ML vs C Statistical approaches
+The system is specifically optimized for Apple Silicon (M4 Pro) but the methodology is transferable to other platforms.
 
 ---
 
@@ -58,22 +52,9 @@ The system is specifically optimized for Apple Silicon (M4 Pro) but the methodol
 
 ### 2.1 Anomaly Detection in System Monitoring
 
-Chandola et al. (2009) provide a comprehensive survey of anomaly detection techniques, categorizing them into:
+Chandola et al. (2009) provide a comprehensive survey of anomaly detection techniques, categorizing them into statistical methods, classification-based approaches, nearest-neighbor methods, and isolation methods.
 
-- **Statistical methods**: Z-score, Gaussian models
-- **Classification-based**: Decision Trees, SVM, Neural Networks
-- **Nearest-neighbor**: KNN, Local Outlier Factor
-- **Isolation methods**: Isolation Forest
-
-For system monitoring, Isolation Forest (Liu et al., 2008) is particularly effective because it isolates anomalies based on *path length* in random trees, making it computationally efficient.
-
-### 2.2 Feature Engineering for System Metrics
-
-Gregg (2020) emphasizes the importance of collecting **rate metrics** (e.g., bytes/second) rather than **cumulative counters** (e.g., total bytes since boot). This prevents baseline drift in long-running monitoring systems.
-
-### 2.3 Classification Algorithms
-
-The following algorithms were selected based on their established performance in anomaly detection literature:
+### 2.2 Classification Algorithms
 
 | Algorithm | Type | Reference |
 | :--- | :--- | :--- |
@@ -87,86 +68,78 @@ The following algorithms were selected based on their established performance in
 
 ## 3. Methodology
 
-### 3.1 Data Collection
+### 3.1 Data Collection Architecture
 
-#### 3.1.1 Telemetry Gathering
+The system collects ~100 features at 0.5-second intervals:
 
-The `DataCollector.py` module uses the `psutil` library to capture system metrics at 0.5-second intervals:
+![Figure 1: Data Collection Flow](data_flow_diagram.png)
+*Figure 1: System architecture showing data flow from hardware to ML model.*
 
-```python
-cpu_percent = psutil.cpu_percent(percpu=True)  # Per-core CPU load
-virtual_memory = psutil.virtual_memory()        # RAM statistics
-disk_io = psutil.disk_io_counters()            # Disk read/write
-net_io = psutil.net_io_counters()              # Network traffic
-```
+**Feature Categories:**
+- **CPU**: Per-core load (14 cores), user/system times, frequency
+- **Memory**: Virtual memory percent, available bytes, swap usage
+- **Disk**: Read/write rates (differential telemetry)
+- **Network**: Bytes sent/received rates, connection count
 
-#### 3.1.2 Differential Telemetry
+### 3.2 Ground Truth Labeling
 
-To address the baseline drift problem identified in Section 2.2, cumulative counters are converted to rates:
+Controlled stress injections create labeled training data:
 
-$$\text{Rate} = \frac{\text{Current Value} - \text{Previous Value}}{\Delta t}$$
-
-#### 3.1.3 Ground Truth Labeling
-
-Controlled stress injections are used to create labeled training data:
-
-- **CPU Stress**: Multiprocessing busy-loops on all 14 cores
-- **RAM Stress**: NumPy array allocation (up to 8GB)
-- **Disk Stress**: Sequential write operations to `/tmp`
-- **Network Stress**: HTTP request flooding
-
-### 3.2 Feature Engineering
-
-Approximately 100 features are extracted per sample, grouped into four categories:
-
-| Category | Example Features | Count |
+| Injector | Method | Duration |
 | :--- | :--- | :--- |
-| CPU | load0...load13, user_time, system_time | ~60 |
-| Memory | virtual_percent, swap_used | ~10 |
-| Disk | disk_read_rate, disk_write_rate | ~10 |
-| Network | net_bytes_sent_rate, connections | ~10 |
+| CPU | Multiprocessing busy-loops | 5-15 seconds |
+| RAM | NumPy array allocation (8GB) | 5-15 seconds |
+| Disk | Sequential writes to /tmp | 5-15 seconds |
 
 ### 3.3 Model Training ("Extreme Benchmarking")
 
-The `ModelTrainer.py` module implements a comparative evaluation framework:
+The system trains 13 different algorithms and ranks them by F1-Score:
 
-1. **Split**: 70% training, 30% testing (stratified)
-2. **Normalize**: StandardScaler (z-score normalization)
-3. **Train**: 13 algorithms (10 supervised, 3 unsupervised)
-4. **Evaluate**: F1-Score, Precision, Recall, Accuracy
-5. **Select**: Champion model saved to `best_model.bin`
-
-### 3.4 Real-Time Inference
-
-The `AnomalyEngine.py` module implements the detection loop:
-
-```
-LOOP:
-    1. Capture live system state (100 features)
-    2. Apply StandardScaler transformation
-    3. Model.predict() → Anomaly / Normal
-    4. If Anomaly: identify_root_cause()
-    5. Update dashboard UI
-    6. Log to file
-    7. Sleep 300ms
-```
-
-### 3.5 Root Cause Identification (Hybrid Detection)
-
-A key contribution of this project is the **Mean Category Deviation** algorithm:
-
-1. Group feature Z-scores by category (CPU, Memory, Disk, Network)
-2. Calculate the mean Z-score for each category
-3. Apply sanity checks (raw CPU% > 85% → boost CPU score)
-4. Return the category with the highest score
-
-This solves the "CPU Bias" problem where 14 CPU features would dominate 2 Memory features if using simple summation.
+![Figure 2: Model Performance Comparison](model_comparison_f1.png)
+*Figure 2: F1-Score comparison across all 13 trained models.*
 
 ---
 
-## 4. Implementation
+## 4. Results and Evaluation
 
-### 4.1 Python Machine Learning Ecosystem
+### 4.1 Model Performance Leaderboard
+
+| Rank | Model | F1-Score | Precision | Recall |
+| :--- | :--- | :--- | :--- | :--- |
+| 🥇 | Random Forest | 0.9821 | 0.98 | 0.98 |
+| 🥈 | Gradient Boosting | 0.9756 | 0.97 | 0.98 |
+| 🥉 | MLP Neural Network | 0.9542 | 0.95 | 0.96 |
+| 4 | SVM (RBF) | 0.9423 | 0.94 | 0.95 |
+| 5 | Isolation Forest | 0.9012 | 0.89 | 0.91 |
+
+### 4.2 Confusion Matrices (Top 6 Models)
+
+![Figure 3: Confusion Matrices](confusion_matrices_top6.png)
+*Figure 3: Confusion matrices showing True Positives, True Negatives, False Positives, and False Negatives for top 6 models.*
+
+### 4.3 Neural Network Training Convergence
+
+![Figure 4: MLP Loss Curve](neural_network_loss.png)
+*Figure 4: Training loss curve for Multi-Layer Perceptron showing convergence.*
+
+### 4.4 Precision vs Recall Trade-off
+
+![Figure 5: Precision-Recall Scatter](precision_recall_scatter.png)
+*Figure 5: Precision vs Recall scatter plot for all models, with bubble size indicating accuracy.*
+
+### 4.5 Root Cause Detection Accuracy
+
+| Injection Type | Expected Cause | Detected Cause | Accuracy |
+| :--- | :--- | :--- | :--- |
+| CPU Stress | CPU | CPU | ✅ 100% |
+| RAM Stress | MEMORY | MEMORY | ✅ 100% |
+| Disk Stress | DISK | DISK | ✅ 100% |
+
+---
+
+## 5. Implementation Details
+
+### 5.1 Python Ecosystem
 
 | Module | Purpose |
 | :--- | :--- |
@@ -175,50 +148,23 @@ This solves the "CPU Bias" problem where 14 CPU features would dominate 2 Memory
 | `ModelTrainer.py` | 13-algorithm benchmarking engine |
 | `AnomalyEngine.py` | Real-time dashboard and inference |
 
-### 4.2 C Statistical Verification Suite
+### 5.2 C Statistical Verification Suite
 
-To validate results independently, a C implementation was developed using direct macOS Mach Kernel syscalls:
+The C implementation uses direct Mach Kernel syscalls for ultra-low latency:
 
-```c
-kern_return_t kr = host_processor_info(
-    mach_host_self(),
-    PROCESSOR_CPU_LOAD_INFO,
-    &processor_count,
-    &cpu_load,
-    &cpu_msg_count
-);
-```
+| Module | Purpose |
+| :--- | :--- |
+| `telemetry.c` | Direct kernel communication |
+| `hyper_engine.c` | Z-score based detection |
+| `hyper_simulator.c` | Native stress injection |
 
-The C engine uses classical Z-score statistics (no ML) to detect anomalies, providing an independent verification baseline.
+### 5.3 Performance Comparison
 
----
-
-## 5. Results and Evaluation
-
-### 5.1 Model Performance
-
-| Rank | Model | F1-Score | Type |
-| :--- | :--- | :--- | :--- |
-| 🥇 | Random Forest | 0.9821 | Supervised |
-| 🥈 | Gradient Boosting | 0.9756 | Supervised |
-| 🥉 | MLP Neural Network | 0.9542 | Supervised |
-| 4 | SVM (RBF) | 0.9423 | Supervised |
-| 5 | Isolation Forest | 0.9012 | Unsupervised |
-
-### 5.2 Root Cause Detection Accuracy
-
-| Injection | Expected | Detected | Accuracy |
-| :--- | :--- | :--- | :--- |
-| CPU Stress | CPU | CPU | ✅ 100% |
-| RAM Stress | MEMORY | MEMORY | ✅ 100% |
-| Disk Stress | DISK | DISK | ✅ 100% |
-
-### 5.3 Latency Comparison
-
-| Metric | Python | C |
+| Metric | Python ML | C Statistical |
 | :--- | :--- | :--- |
 | Inference Latency | ~50ms | <1ms |
 | CPU Overhead | 2-5% | <0.1% |
+| Detection Method | 13 ML Models | Z-Score Statistics |
 
 ---
 
@@ -226,29 +172,21 @@ The C engine uses classical Z-score statistics (no ML) to detect anomalies, prov
 
 ### 6.1 Key Findings
 
-1. **Ensemble methods outperform others**: Random Forest achieved the highest F1-Score due to its robustness to overfitting.
-2. **Feature normalization is critical**: Without StandardScaler, SVM and Neural Networks failed to converge.
-3. **Mean Category Deviation solves bias**: Simple Z-score summation favored CPU; averaging fixed this.
+1. **Ensemble methods excel**: Random Forest achieved highest F1-Score (0.98).
+2. **Feature normalization critical**: StandardScaler essential for SVM/MLP convergence.
+3. **Mean Category Deviation**: Solved the "CPU Bias" problem in root cause detection.
 
 ### 6.2 Limitations
 
-1. Network anomaly detection is less reliable due to variable external traffic.
-2. The system is currently optimized only for Apple Silicon.
-3. GPU monitoring is not yet implemented.
-
-### 6.3 Future Work
-
-1. Extend to Linux and Windows platforms.
-2. Add GPU/NPU monitoring for Apple Neural Engine.
-3. Implement online learning for adaptive baselines.
+1. Network detection less reliable due to external traffic variance.
+2. Currently optimized for Apple Silicon only.
+3. GPU/NPU monitoring not yet implemented.
 
 ---
 
 ## 7. Conclusion
 
-This project successfully demonstrates the application of Machine Learning to real-time system anomaly detection. The dual-ecosystem approach (Python ML + C Statistical) provides both flexibility and verification. The Extreme Benchmarking methodology ensures optimal model selection, and the Hybrid Detection algorithm solves practical challenges in root cause identification.
-
-The system achieves >98% F1-Score with the Random Forest classifier and correctly identifies the root cause (CPU, Memory, or Disk) with 100% accuracy on controlled tests.
+This project successfully demonstrates the application of Machine Learning to real-time system anomaly detection. The dual-ecosystem approach provides both flexibility (Python) and performance (C). The system achieves **>98% F1-Score** with Random Forest and **100% root cause accuracy** for CPU, Memory, and Disk anomalies.
 
 ---
 
@@ -256,21 +194,42 @@ The system achieves >98% F1-Score with the Random Forest classifier and correctl
 
 1. Breiman, L. (2001). Random Forests. *Machine Learning*, 45(1), 5-32.
 2. Chandola, V., Banerjee, A., & Kumar, V. (2009). Anomaly Detection: A Survey. *ACM Computing Surveys*, 41(3).
-3. Cortes, C., & Vapnik, V. (1995). Support-Vector Networks. *Machine Learning*, 20(3), 273-297.
-4. Friedman, J. H. (2001). Greedy Function Approximation: A Gradient Boosting Machine. *Annals of Statistics*.
-5. Gregg, B. (2020). *Systems Performance* (2nd ed.). Addison-Wesley Professional.
-6. Liu, F. T., Ting, K. M., & Zhou, Z. H. (2008). Isolation Forest. *ICDM*, 413-422.
+3. Cortes, C., & Vapnik, V. (1995). Support-Vector Networks. *Machine Learning*, 20(3).
+4. Friedman, J. H. (2001). Greedy Function Approximation. *Annals of Statistics*.
+5. Gregg, B. (2020). *Systems Performance* (2nd ed.). Addison-Wesley.
+6. Liu, F. T., et al. (2008). Isolation Forest. *ICDM*, 413-422.
 
 ---
 
-## Appendix A: System Configuration
+## Appendix: System Configuration
 
-- **Hardware**: MacBook Pro M4 Pro (14-core CPU, 24GB Unified Memory)
+- **Hardware**: MacBook Pro M4 Pro (14-core, 24GB RAM)
 - **OS**: macOS Sequoia 15.0
 - **Python**: 3.10.12
 - **Libraries**: scikit-learn 1.3.0, psutil 5.9.5, rich 13.6.0
-- **C Compiler**: Apple Clang 15.0.0
 
 ---
 
 *Submitted for DCML 2026.*
+
+---
+
+## 📝 Instructions for DOCX Conversion
+
+To convert this report to Microsoft Word format:
+
+### Option 1: Using Microsoft Word
+1. Open Word
+2. File → Open → Select this .md file
+3. Word will import the markdown
+
+### Option 2: Using Pandoc (if installed)
+```bash
+brew install pandoc
+pandoc academic_report.md -o academic_report.docx
+```
+
+### Option 3: Online Converter
+Visit: https://cloudconvert.com/md-to-docx
+
+**Note**: All figures (PNG files) are in this same folder and will need to be inserted manually into the DOCX.
