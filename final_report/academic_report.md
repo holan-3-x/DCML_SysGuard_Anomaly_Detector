@@ -103,16 +103,55 @@ WHILE collecting:
     sleep(0.5 seconds)
 ```
 
-#### 3.2.2 Feature Vector Composition
+#### 3.2.2 Key Features Collected
 
-Each data sample consists of approximately **100 features** organized into four categories:
+The following table documents the most important features, their meaning, and scientific justification for inclusion:
 
-| Category | Features | Description |
+**CPU Time Distribution Features** (`{core}user`, `{core}system`, `{core}idle`):
+
+| Feature | What It Is | Why We Collect It |
 | :--- | :--- | :--- |
-| **CPU** | `load0`...`load13`, `{i}user`, `{i}system`, `{i}idle` | Per-core utilization percentages and time distributions |
-| **Memory** | `virtual_percent`, `virtual_available`, `swap_used` | RAM and swap space metrics |
-| **Disk** | `disk_read_rate`, `disk_write_rate`, `disk_usage_percent` | I/O throughput and capacity |
-| **Network** | `net_bytes_sent_rate`, `net_bytes_recv_rate`, `net_connections` | Traffic volume and connection count |
+| `{i}user` | Percentage of time CPU core `i` spent executing user-space code | Indicates application-level workload; high values during normal operation suggest legitimate computation |
+| `{i}system` | Percentage of time CPU core `i` spent in kernel-space (system calls) | Indicates OS overhead; anomalous spikes may suggest malware or driver issues |
+| `{i}idle` | Percentage of time CPU core `i` was inactive | Baseline metric; sudden drops from historical idle levels indicate stress |
+
+**CPU Load Features** (`load0` through `load13`):
+
+| Feature | What It Is | Why We Collect It |
+| :--- | :--- | :--- |
+| `load{i}` | Instantaneous CPU utilization percentage for core `i` (0-100%) | Direct measure of per-core stress; 14 separate readings capture heterogeneous load patterns on M4 Pro's P-cores and E-cores |
+
+**Memory Features**:
+
+| Feature | What It Is | Why We Collect It |
+| :--- | :--- | :--- |
+| `virtual_percent` | Percentage of RAM currently in use | Primary memory stress indicator; values >85% indicate potential memory exhaustion |
+| `virtual_available` | Bytes of RAM available for new allocations | Absolute measure of remaining capacity; critical for predicting out-of-memory conditions |
+| `virtual_wired` | Bytes of memory locked by the kernel (cannot be paged out) | Indicates kernel-level memory pressure; high values may prevent other applications from allocating |
+| `swap_used` | Bytes of swap space (disk-backed virtual memory) in use | Non-zero values indicate RAM overflow; heavy swap usage degrades performance 1000x |
+
+**Disk I/O Features** (Differential Rates):
+
+| Feature | What It Is | Why We Collect It |
+| :--- | :--- | :--- |
+| `disk_io_read_bytes_rate` | Bytes read from disk per second | Measures read throughput; anomalous spikes may indicate unauthorized data exfiltration |
+| `disk_io_write_bytes_rate` | Bytes written to disk per second | Measures write throughput; sustained high values may indicate logging attacks or ransomware |
+| `disk_usage_percent` | Percentage of disk space consumed | Capacity monitoring; full disks cause application failures |
+
+**Network Features** (Differential Rates):
+
+| Feature | What It Is | Why We Collect It |
+| :--- | :--- | :--- |
+| `net_io_bytes_sent_rate` | Bytes transmitted per second | Outbound bandwidth; anomalous spikes may indicate data exfiltration or DDoS participation |
+| `net_io_bytes_recv_rate` | Bytes received per second | Inbound bandwidth; high values may indicate download attacks or unauthorized updates |
+| `net_connections_count` | Number of active network connections | Connection density; sudden increases may indicate port scanning or botnet activity |
+
+**Label Feature**:
+
+| Feature | What It Is | Why We Collect It |
+| :--- | :--- | :--- |
+| `injector` | Ground truth label: `rest`, `cpu`, `ram`, `disk`, or `net` | Supervised learning requires labeled data; this column provides the target variable for classification |
+
 
 #### 3.2.3 Differential Telemetry
 
