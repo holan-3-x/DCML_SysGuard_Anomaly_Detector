@@ -77,28 +77,52 @@ def draw_graph(history, width=30, height=8):
     return "\n".join(output)
 def identify_root_cause(X_scaled, features) -> str:
     """
-    Sums absolute z-scores per category with heuristic weighting.
+    HYBRID DETECTION: Combines Z-score analysis with direct value checks.
+    This ensures reliable detection for CPU, RAM, and Disk.
     """
     vals = np.abs(X_scaled[0])
-    sums = {"CPU": 0.0, "MEMORY": 0.0, "DISK": 0.0, "NETWORK": 0.0}
+    
+    # Step 1: Collect Z-scores into categories
+    categories = {"CPU": [], "MEMORY": [], "DISK": [], "NETWORK": []}
     
     for i, name in enumerate(features):
-        name = name.lower()
+        name_lower = name.lower()
         v = vals[i]
         
-        if 'virtual' in name or 'swap' in name or 'mem' in name:
-            sums["MEMORY"] += v
-        elif 'disk' in name:
-            # Disk spikes are less common than CPU, favor them slightly less in tie-breakers
-            sums["DISK"] += v * 0.8 
-        elif 'net' in name:
-            # Network is highly volatile, give it a lower weight to avoid false claims
-            sums["NETWORK"] += v * 0.5
+        if any(kw in name_lower for kw in ['virtual', 'swap', 'mem_']):
+            categories["MEMORY"].append(v)
+        elif 'disk' in name_lower:
+            categories["DISK"].append(v)
+        elif 'net' in name_lower or 'connection' in name_lower:
+            categories["NETWORK"].append(v)
         else:
-            # Core loads/times are direct evidence of CPU stress
-            sums["CPU"] += v * 1.5 
+            categories["CPU"].append(v)
             
-    return max(sums, key=sums.get)
+    # Step 2: Calculate Mean Z-score per category
+    z_scores = {}
+    for cat, v_list in categories.items():
+        z_scores[cat] = np.mean(v_list) if v_list else 0.0
+    
+    # Step 3: SANITY CHECK using live raw values
+    # This overrides Z-scores when there's obvious stress
+    cpu_raw = psutil.cpu_percent(interval=None)
+    mem_raw = psutil.virtual_memory().percent
+    
+    # If CPU is clearly maxed out (>85%), prioritize it
+    if cpu_raw > 85:
+        z_scores["CPU"] += 2.0  # Strong boost
+    
+    # If RAM is clearly under pressure (>80%), prioritize it
+    if mem_raw > 80:
+        z_scores["MEMORY"] += 2.0  # Strong boost
+    
+    # For Disk: Check if disk rate features show high activity
+    # (This is implicit in the Z-scores, so no extra boost needed)
+    
+    return max(z_scores, key=z_scores.get)
+
+
+
 
 def check_keys(active_filters):
     """
