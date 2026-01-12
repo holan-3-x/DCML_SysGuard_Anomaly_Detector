@@ -3,7 +3,7 @@
 **Submission for DCML 2025**
 *An educational, industrial-grade anomaly detection system specifically optimized for Apple Silicon.*
 
-![Dashboard Preview](docs/dashboard_preview.png)
+![Dashboard Preview](docs/dashboard_preview.gif)
 *(Run `python3 src/AnomalyEngine.py` to see this live)*
 
 ## 📜 License
