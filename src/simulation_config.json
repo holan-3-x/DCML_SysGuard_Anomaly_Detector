@@ -1,0 +1,53 @@
+{
+  "simulation_scenarios": [
+    {
+      "identifier": "CPU_DEFAULT_LOAD",
+      "type": "CPU",
+      "params": {
+        "tag": "CPU_default",
+        "target_load": 70
+      }
+    },
+    {
+      "identifier": "CPU_CORE_PINNED_0",
+      "type": "CPU",
+      "params": {
+        "tag": "CPU_SingleCore0",
+        "target_core": 0,
+        "target_load": 90
+      }
+    },
+    {
+      "identifier": "CPU_FULL_THROTTLE",
+      "type": "CPU",
+      "params": {
+        "tag": "CPU_AllCores",
+        "target_load": 95
+      }
+    },
+    {
+      "identifier": "MEMORY_LEAK_SIM",
+      "type": "Memory",
+      "params": {
+        "tag": "Memory_High",
+        "items_for_loop": 15000000
+      }
+    },
+    {
+      "identifier": "DISK_IO_BURST",
+      "type": "Disk",
+      "params": {
+        "tag": "Disk_HighStress",
+        "file_size_mb": 1000
+      }
+    },
+    {
+      "identifier": "NETWORK_TRAFFIC_SPIKE",
+      "type": "Network",
+      "params": {
+        "tag": "Network_Spam",
+        "urls_file": "websites_urls.csv"
+      }
+    }
+  ]
+}

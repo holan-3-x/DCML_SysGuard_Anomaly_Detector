@@ -1,3 +1,7 @@
+"""
+Simulator.py: Core simulation engine for generating system loads.
+Includes ARM-optimized stress logic for CPU, RAM (NumPy), Disk (NVMe), and Network.
+"""
 import os
 import pathlib
 import threading
@@ -11,6 +15,7 @@ try:
 except ImportError:
     _load_all_cores = None
     _load_single_core = None
+import numpy as np
 
 def busy_loop(duration_s, target_load):
     start = time.time()
@@ -52,9 +57,9 @@ def current_ms():
     """
     return round(time.time() * 1000)
 
-class LoadInjector:
+class BaseSimulator:
     """
-    Abstract class for Injecting Errors in the System probes
+    Base class for system load simulation
     """
 
     def __init__(self, tag: str = '', duration_ms: float = 1000):
@@ -117,23 +122,24 @@ class LoadInjector:
         return "[" + self.tag + "]Injector" + "(d" + str(self.duration_ms) + ")"
 
     @classmethod
-    def fromJSON(cls, job):
-        if job is not None:
-            if 'type' in job:
-                if job['type'] in {'Memory', 'RAM', 'MemoryUsage', 'Mem', 'MemoryStress'}:
-                    return MemoryStressInjection.fromJSON(job)
-                if job['type'] in {'CPU', 'Proc', 'CPUUsage', 'CPUStress'}:
-                    return CPUStressInjection.fromJSON(job)
-                if job['type'] in {'Disk', 'DiskStress', 'IO'}:
-                    return DiskStressInjection.fromJSON(job)
-                if job['type'] in {'Network', 'Net', 'NetworkStress'}:
-                    return NetworkStressInjection.fromJSON(job)
+    def from_scenario(cls, scenario):
+        if scenario is not None:
+            config = scenario.get('params', scenario)
+            stype = scenario.get('type', 'CPU')
+            if stype in {'Memory', 'RAM', 'MemoryUsage', 'Mem', 'MemoryStress'}:
+                return RAMSimulator.from_json(config)
+            if stype in {'CPU', 'Proc', 'CPUUsage', 'CPUStress'}:
+                return CPUSimulator.from_json(config)
+            if stype in {'Disk', 'DiskStress', 'IO'}:
+                return DiskSimulator.from_json(config)
+            if stype in {'Network', 'Net', 'NetworkStress'}:
+                return NetworkSimulator.from_json(config)
         return None
 
 
-class CPUStressInjection(LoadInjector):
+class CPUSimulator(BaseSimulator):
     """
-    CPUStress Error
+    CPU Load Simulation
     """
 
     def __init__(self, tag: str = '', duration_ms: float = 1000, target_load: int = 70, target_core: int = -1):
@@ -142,7 +148,7 @@ class CPUStressInjection(LoadInjector):
         """
         self.target_load = int(target_load*random.choice([0.9, 1, 1.1]))
         self.target_core = target_core
-        LoadInjector.__init__(self, tag, duration_ms)
+        BaseSimulator.__init__(self, tag, duration_ms)
 
     def inject_body(self):
         self.completed_flag = False
@@ -160,36 +166,39 @@ class CPUStressInjection(LoadInjector):
         self.completed_flag = True
 
     def get_name(self) -> str:
-        return "[" + self.tag + "]CPUStressInjection" + "(d" + str(self.duration_ms) + "-t"+str(self.target_load)+")"
+        return "[" + self.tag + "]CPUSim(d" + str(self.duration_ms) + "-t"+str(self.target_load)+")"
 
     @classmethod
-    def fromJSON(cls, job):
-        return CPUStressInjection(tag=(job['tag'] if 'tag' in job else ''),
+    def from_json(cls, job):
+        return CPUSimulator(tag=(job['tag'] if 'tag' in job else ''),
                                   duration_ms=(job['duration_ms'] if 'duration_ms' in job else 1000),
                                   target_load=(job['target_load'] if 'target_load' in job else 70),
                                   target_core=(job['target_core'] if 'target_core' in job else -1))
 
-class MemoryStressInjection(LoadInjector):
+class RAMSimulator(BaseSimulator):
     """
-    Loops and adds data to an array simulating memory usage
+    Improved Memory simulation for macOS M4 Pro
     """
 
     def __init__(self, tag: str = '', duration_ms: float = 1000, items_for_loop: int = 1234567):
-        LoadInjector.__init__(self, tag, duration_ms)
+        BaseSimulator.__init__(self, tag, duration_ms)
         self.items_for_loop = items_for_loop
         self.force_stop = False
 
     def inject_body(self):
         self.completed_flag = False
         start_time = current_ms()
-        my_list = []
-        while True:
-            my_list.append([999 for _ in range(self.items_for_loop)])
-            if current_ms() - start_time > self.duration_ms or self.force_stop:
-                break
-            else:
-                time.sleep(0.0001)
-
+        # Use numpy for more aggressive memory allocation
+        hold_memory = []
+        try:
+            while current_ms() - start_time < self.duration_ms and not self.force_stop:
+                # Allocate ~100MB per iteration
+                chunk = np.ones((1024, 1024, 12), dtype=np.float64) 
+                hold_memory.append(chunk)
+                time.sleep(0.05)
+        except MemoryError:
+            pass
+        
         self.injected_interval.append({'start': start_time, 'end': current_ms()})
         self.completed_flag = True
         self.force_stop = False
@@ -198,42 +207,41 @@ class MemoryStressInjection(LoadInjector):
         self.force_stop = True
 
     def get_name(self) -> str:
-        return "[" + self.tag + "]MemoryStressInjection(d" + str(self.duration_ms) + "-i" \
-               + str(self.items_for_loop) + ")"
+        return "[" + self.tag + "]RAMSim(d" + str(self.duration_ms) + ")"
 
     @classmethod
-    def fromJSON(cls, job):
-        return MemoryStressInjection(tag=(job['tag'] if 'tag' in job else ''),
+    def from_json(cls, job):
+        return RAMSimulator(tag=(job['tag'] if 'tag' in job else ''),
                                      duration_ms=(job['duration_ms'] if 'duration_ms' in job else 1000),
                                      items_for_loop=(job['items_for_loop']
                                                      if 'items_for_loop' in job else 1234567))
 
-class DiskStressInjection(LoadInjector):
+class DiskSimulator(BaseSimulator):
     """
-    Stress the disk by writing and reading large files.
+    Disk IO Simulation
     """
 
     def __init__(self, tag: str = '', duration_ms: float = 1000, file_size_mb: int = 100):
-        LoadInjector.__init__(self, tag, duration_ms)
+        BaseSimulator.__init__(self, tag, duration_ms)
         self.file_size_mb = file_size_mb
         self.force_stop = False
 
     def inject_body(self):
         self.completed_flag = False
         start_time = current_ms()
-        test_file = pathlib.Path(__file__).parent.resolve() / "disk_stress_test.tmp"
+        test_file = pathlib.Path(__file__).parent.resolve() / "disk_sim.tmp"
         
         try:
-            data = os.urandom(10 * 1024 * 1024) # 10MB chunks
+            data = os.urandom(50 * 1024 * 1024) # 50MB chunks for fast M4 SSD
             while current_ms() - start_time < self.duration_ms and not self.force_stop:
                 with open(test_file, "wb") as f:
-                    for _ in range(max(1, self.file_size_mb // 10)):
+                    for _ in range(max(1, self.file_size_mb // 50)):
                         f.write(data)
                         if self.force_stop: break
                 with open(test_file, "rb") as f:
-                    while f.read(10 * 1024 * 1024):
+                    while f.read(50 * 1024 * 1024):
                         if self.force_stop: break
-                time.sleep(0.1)
+                time.sleep(0.05)
         except Exception:
             pass
         finally:
@@ -251,21 +259,21 @@ class DiskStressInjection(LoadInjector):
         self.force_stop = True
 
     def get_name(self) -> str:
-        return "[" + self.tag + "]DiskStressInjection(d" + str(self.duration_ms) + "-s" + str(self.file_size_mb) + "MB)"
+        return "[" + self.tag + "]DiskSim(d" + str(self.duration_ms) + "-s" + str(self.file_size_mb) + "MB)"
 
     @classmethod
-    def fromJSON(cls, job):
-        return DiskStressInjection(tag=(job['tag'] if 'tag' in job else ''),
+    def from_json(cls, job):
+        return DiskSimulator(tag=(job['tag'] if 'tag' in job else ''),
                                    duration_ms=(job['duration_ms'] if 'duration_ms' in job else 1000),
                                    file_size_mb=(job['file_size_mb'] if 'file_size_mb' in job else 100))
 
-class NetworkStressInjection(LoadInjector):
+class NetworkSimulator(BaseSimulator):
     """
-    Stress the network by repeatedly visiting a list of URLs.
+    Improved Network simulation using threads
     """
 
     def __init__(self, tag: str = '', duration_ms: float = 1000, urls_file: str = 'websites_urls.csv'):
-        LoadInjector.__init__(self, tag, duration_ms)
+        BaseSimulator.__init__(self, tag, duration_ms)
         self.urls_file = urls_file
         self.force_stop = False
         self.urls = []
@@ -276,20 +284,34 @@ class NetworkStressInjection(LoadInjector):
         except Exception:
             self.urls = ["http://www.google.com", "http://www.github.com"]
 
-    def inject_body(self):
-        self.completed_flag = False
-        start_time = current_ms()
-        
-        while current_ms() - start_time < self.duration_ms and not self.force_stop:
+    def _fetch_random(self):
+        while not self.force_stop:
             url = random.choice(self.urls)
             if not url.startswith('http'):
                 url = 'http://' + url
             try:
-                # Use a small timeout to keep it moving fast
-                requests.get(url, timeout=2)
+                requests.get(url, timeout=1)
             except Exception:
                 pass
-            time.sleep(0.05)
+            time.sleep(0.01)
+
+    def inject_body(self):
+        self.completed_flag = False
+        start_time = current_ms()
+        
+        # Parallel fetchers
+        threads = []
+        for _ in range(4):
+            t = threading.Thread(target=self._fetch_random)
+            t.start()
+            threads.append(t)
+        
+        while current_ms() - start_time < self.duration_ms and not self.force_stop:
+            time.sleep(0.1)
+
+        self.force_stop = True
+        for t in threads:
+            t.join()
 
         self.injected_interval.append({'start': start_time, 'end': current_ms()})
         self.completed_flag = True
@@ -299,10 +321,10 @@ class NetworkStressInjection(LoadInjector):
         self.force_stop = True
 
     def get_name(self) -> str:
-        return "[" + self.tag + "]NetworkStressInjection(d" + str(self.duration_ms) + ")"
+        return "[" + self.tag + "]NetSim(d" + str(self.duration_ms) + ")"
 
     @classmethod
-    def fromJSON(cls, job):
-        return NetworkStressInjection(tag=(job['tag'] if 'tag' in job else ''),
-                                      duration_ms=(job['duration_ms'] if 'duration_ms' in job else 1000),
-                                      urls_file=(job['urls_file'] if 'urls_file' in job else 'websites_urls.csv'))
+    def from_json(cls, job):
+        return NetworkSimulator(tag=(job['tag'] if 'tag' in job else ''),
+                                       duration_ms=(job['duration_ms'] if 'duration_ms' in job else 1000),
+                                       urls_file=(job['urls_file'] if 'urls_file' in job else 'websites_urls.csv'))

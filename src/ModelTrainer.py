@@ -1,3 +1,7 @@
+"""
+ModelTrainer.py: Extreme benchmarking script.
+Trains and evaluates 13+ ML models, archives them as .bin, and generates a visual leaderboard.
+"""
 import pandas as pd
 import numpy as np
 import pathlib
@@ -40,7 +44,7 @@ def main():
     # Preprocessing
     suffixes_to_drop = ['irq', 'steal', 'guest', 'guest_nice', 'iowait', 'min', 'max']
     cols_to_drop = [c for c in dataset.columns if any(s in c for s in suffixes_to_drop)]
-    cols_to_drop += ['time_s', 'virtual_total']
+    cols_to_drop += ['time_s', 'Timestamp', 'UserReadTime', 'virtual_total']
     dataset = dataset.drop(columns=[c for c in cols_to_drop if c in dataset.columns])
     
     X = dataset.drop(columns='injector')
@@ -101,16 +105,17 @@ def main():
             cm = confusion_matrix(y_test, y_pred)
             tn, fp, fn, tp = cm.ravel() if cm.size == 4 else (cm[0][0], 0, 0, 0)
             
-            model_file = f"archive/{name}.pkl"
+            model_file = f"archive/{name}.bin"
             dump(model, base_path / model_file)
             
             results.append({
+                "rank": 0, # Placeholder
                 "name": name,
                 "type": "unsupervised" if is_unsupervised else "supervised",
-                "f1": f1,
-                "precision": prec,
-                "recall": rec,
-                "accuracy": acc,
+                "f1": float(f1),
+                "precision": float(prec),
+                "recall": float(rec),
+                "accuracy": float(acc),
                 "tp": int(tp), "tn": int(tn), "fp": int(fp), "fn": int(fn),
                 "path": model_file
             })
@@ -187,6 +192,13 @@ def main():
         if "NeuralNetwork" in loss_curves:
             f.write("\n### Training Behavior\n")
             f.write("![NN Loss Curve](neural_network_loss.png)\n")
+
+    # Save JSON Leaderboard with ranks
+    for i, r in enumerate(results):
+        r['rank'] = i + 1
+    
+    with open(analytics_path / 'leaderboard.json', 'w') as f:
+        json.dump({"models": results, "generated_at": time.ctime()}, f, indent=4)
 
     # Save Best Model to best_model.bin
     best_model_path = base_path / results[0]['path']

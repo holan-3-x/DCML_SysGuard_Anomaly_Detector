@@ -1,11 +1,11 @@
-# 🚀 DCML Anomaly Detector (M4 Pro Optimized)
+# 🚀 M4 Pro Hyper-Detector
 
-An end-to-end anomaly detection system for macOS, featuring real-time monitoring, multi-model AI training (Supervised & Unsupervised), and a premium terminal dashboard.
+An industrial-grade anomaly detection system specifically optimized for **MacBook Pro M4 Pro**. This system uses multi-threaded performance simulators and high-frequency monitoring to train AI models that can distinguish between "Normal" system states and "Anomalous" stress conditions.
 
 ## 💻 System Compatibility
-- **Hardware**: Specifically optimized for **MacBook Pro M4 Pro** (14 CPU cores).
-- **OS**: macOS (using custom busy-loop stressors for ARM architecture).
-- **Python**: 3.13+ recommended.
+- **Hardware**: Specifically optimized for **Apple M4 Pro** (14 CPU cores).
+- **RAM**: 24GB+ recommended (Simulators use NumPy for aggressive allocation).
+- **OS**: macOS Sequoia+ (using custom ARM-native busy-loops).
 
 ---
 
@@ -23,57 +23,70 @@ python3 -m venv .venv
 
 ---
 
-## 📊 Workflow Steps
+## 📊 Deployment Workflow
 
-### Step 1: Data Collection (Monitoring)
-Collect baseline performance data (Normal vs Injected Anomalies) to train the AI.
+### Step 1: Data Acquisition
+Collect baseline performance data and simulated anomalies.
 ```bash
-./.venv/bin/python3 src/main_monitor_injector.py
+./.venv/bin/python3 src/DataCollector.py
 ```
 *Creates: `src/output_folder/monitored_data.csv`*
 
-### Step 2: AI Model Training
-Train both **Supervised** (Random Forest) and **Unsupervised** (Isolation Forest) models.
+### Step 2: AI Model Engineering
+Benchmarking 13+ architectures (Supervised/Unsupervised).
 ```bash
-./.venv/bin/python3 src/train_advanced.py
+./.venv/bin/python3 src/ModelTrainer.py
 ```
-*Creates: `src/random_forest.bin`, `src/isolation_forest.bin`, and `src/standard_scaler.bin`*
+*Creates: All models in `src/archive/` (as .bin) and visual leaderboard in `src/analytics/`*
 
-### Step 3: Run the Dashboard
+### Step 3: Deployment (Real-time Dashboard)
 ```bash
-# Use the auto-selected best model (recommended)
-./.venv/bin/python3 src/enhanced_detector.py 5 best
+# Auto-calibrated mode (Uses the Champion model from training)
+./.venv/bin/python3 src/AnomalyEngine.py 15 best
 
-# Or choose a specific architecture: rf, mlp, iso
-./.venv/bin/python3 src/enhanced_detector.py 5 mlp
+# Specific model mode (e.g. RandomForest, NeuralNetwork, IsolationForest)
+./.venv/bin/python3 src/AnomalyEngine.py 20 RandomForest
 ```
 
-### Step 4: Inject a Test Anomaly
-In a second terminal, trigger any anomaly to see the dashboard react.
+### Step 4: Verification (Trigger Simulation)
+In a separate terminal, run these to verify detection:
 ```bash
-# Test Options: cpu, disk, ram, net
-
-./.venv/bin/python3 src/test_anomaly.py cpu
-./.venv/bin/python3 src/test_anomaly.py disk
-./.venv/bin/python3 src/test_anomaly.py ram
-./.venv/bin/python3 src/test_anomaly.py net
+./.venv/bin/python3 src/Validator.py cpu   # High CPU Load
+./.venv/bin/python3 src/Validator.py ram   # Aggressive Memory Allocation
+./.venv/bin/python3 src/Validator.py disk  # High IO Throughput
+./.venv/bin/python3 src/Validator.py net   # Multi-threaded Network Traffic
 ```
 
 ---
 
-## 📂 Project Structure
-- `src/enhanced_detector.py`: The premium terminal dashboard.
-- `src/train_advanced.py`: Advanced training script for multiple models.
-- `src/main_monitor_injector.py`: Data collection & fault injection engine.
-- `src/LoadInjector.py`: Core logic for simulating CPU and Memory stress (Mac optimized).
-- `src/test_anomaly.py`: Helper script to trigger a 10-second anomaly.
+## 📂 Component Description
+
+| File | Purpose |
+| :--- | :--- |
+| `src/DataCollector.py` | High-frequency telemetry engine. Gathers CPU, RAM, Disk, and Net metrics. |
+| `src/Simulator.py` | The "Heart" of the simulation. Contains ARM-native stress logic. |
+| `src/ModelTrainer.py` | The "Brain" factory. Trains 13+ models and picks the best one. |
+| `src/AnomalyEngine.py` | The "Security Guard". Real-time dashboard and inference engine. |
+| `src/Validator.py` | The "Test Kit". One-click script to verify the system's reaction. |
+| `src/simulation_config.json` | Configuration file for different simulation scenarios. |
 
 ---
 
-## 📝 Logs & Data
-- `src/warnings.log`: History of all detected anomalies.
-- `src/raw_predictions.log`: Detailed timestamped logs of every prediction made.
-- `src/output_folder/`: Contains the raw CSV data used for training.
+## 💎 Build Artifacts (Generated after Training)
+
+| Artifact | Location | Description |
+| :--- | :--- | :--- |
+| `monitored_data.csv` | `src/output_folder/` | Raw dataset used for AI training. |
+| `archive/*.bin` | `src/archive/` | All 13+ trained models stored in binary format. |
+| `best_model.bin` | `src/` | A copy of the top-performing model (Champion). |
+| `leaderboard.json` | `src/analytics/` | Machine-readable ranking of all trained models. |
+| `leaderboard.md` | `src/analytics/` | Human-readable ranking with visual charts. |
+| `*.png` | `src/analytics/` | Performance charts, confusion matrices, and loss curves. |
 
 ---
-*Created for the DCML 25/26 Project.*
+
+## 📝 Compliance & Performance
+The system is designed to be "silent" during monitoring and "aggressive" during simulation to ensure clear signatures for the machine learning models. Built for high-reliability detection on Apple Silicon.
+
+---
+*Created for the DCML 2025 Anomaly Detection Project.*

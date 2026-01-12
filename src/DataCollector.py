@@ -1,3 +1,8 @@
+"""
+DataCollector.py: High-frequency system telemetry and monitoring engine.
+This script gathers real-time metrics (CPU, RAM, Disk, Net) and logs them for AI training.
+Optimized for MacBook Pro M4 Pro.
+"""
 import csv
 import os.path
 import time
@@ -8,61 +13,56 @@ import os.path
 import random
 from typing import List
 
-from LoadInjector import LoadInjector
+from Simulator import BaseSimulator, current_ms
 
-def read_injectors(json_object, inj_duration: int = 2, verbose: bool = True, n_inj: int = -1) -> List[LoadInjector]:
+def read_scenarios(json_path, inj_duration: int = 2, verbose: bool = True, n_inj: int = -1) -> List[BaseSimulator]:
     """
-    Method to read a JSON object and extract injectors that are specified there
-    :param inj_duration: number of subsequent observations for which the injection takes place
-    :param json_object: the json object or file containing a json object
-    :param verbose: True is debug information has to be shown
-    :param n_inj: -1 means the same injectors as in the json file, otherwise it is the number of injectors needed and are randomly inserted from the ones specified in the json
-    :return: a list of available injectors
+    Method to read a JSON file and extract simulation scenarios
     """
     try:
-        json_object = json.loads(json_object)
-    except ValueError:
-        if os.path.exists(json_object):
-            with open(json_object) as f:
-                json_object = json.load(f)
+        if os.path.exists(json_path):
+            with open(json_path) as f:
+                config_data = json.load(f)
+                scenarios = config_data.get('simulation_scenarios', config_data)
         else:
-            print(f"Could not parse input {json_object}")
-            json_object = None
-    if json_object is None:
-        raise json.JSONDecodeError("Unable to parse JSON")
+            print(f"Could not find config file {json_path}")
+            return []
+    except Exception as e:
+        print(f"Error parsing JSON: {e}")
+        return []
     
-    n_inj_parsed=len(json_object)
-    if n_inj != -1 and n_inj < n_inj_parsed:
-        raise ValueError("Param n_inj can't be lower than the number of injectors specified in the JSON file (n_inj can only be >= or exactly -1)")
-
-    json_injectors = []
-    for job in json_object:
-        job["duration_ms"] = inj_duration
-        new_inj = LoadInjector.fromJSON(job)
-        if new_inj is not None and new_inj.is_valid():
-            # Means it was a valid JSON specification of an Injector
-            json_injectors.append(new_inj)
-            if verbose: print(f'New injector loaded from JSON: {new_inj.get_name()}')
+    available_sims = []
+    for scenario in scenarios:
+        # Update duration from global param if needed
+        if 'params' in scenario:
+            scenario['params']['duration_ms'] = inj_duration
+        else:
+            scenario['duration_ms'] = inj_duration
+            
+        new_sim = BaseSimulator.from_scenario(scenario)
+        if new_sim:
+            available_sims.append(new_sim)
+            if verbose: print(f'Simulation scenario loaded: {new_sim.get_name()}')
     
-    inj_difference = n_inj-n_inj_parsed if n_inj != -1 else 0
-    inj_to_add = []
-    while inj_difference > 0:
-        job = random.choice(json_object)
-        new_inj = LoadInjector.fromJSON(job)
-        if new_inj is not None and new_inj.is_valid():
-            # Means it was a valid JSON specification of an Injector
-            inj_to_add.append(new_inj)
-            inj_difference -= 1
-            if verbose: print(f'New injector loaded from JSON: {new_inj.get_name()}')
+    if n_inj != -1 and n_inj > len(available_sims):
+        # Fill to reached n_inj
+        base_pool = list(available_sims)
+        while len(available_sims) < n_inj:
+            available_sims.append(random.choice(base_pool))
 
-    return json_injectors+inj_to_add
+    return available_sims
 
 def monitor_system() -> dict:
     """
     Method to monitor system
     :return: dictionary with informations about the system
     """
-    ret_dict = {}
+    # Initialize with primary columns first as requested
+    now = time.time()
+    ret_dict = {
+        'Timestamp': now,
+        'UserReadTime': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(now))
+    }
 
     cpu_times_percent = psutil.cpu_times_percent(interval=0.005, percpu=True)
     cpu_percent = psutil.cpu_percent(interval=0.05, percpu=True)
@@ -93,19 +93,11 @@ def monitor_system() -> dict:
     except Exception:
         ret_dict['net_connections_count'] = 0
     
-    ret_dict['time_s'] = time.time()
-
     return ret_dict
 
-def main(out_filename: str, obs_interval_sec: float, obs_per_inj: int, obs_between_inj: int, injectors: List[LoadInjector], verbose: bool = True) -> None:
+def main(out_filename: str, obs_interval_sec: float, obs_per_inj: int, obs_between_inj: int, simulators: List[BaseSimulator], verbose: bool = True) -> None:
     """
     Method to perform monitoring during various load tests
-    :param out_filename: filename (as CSV) to log data read from monitoring the system
-    :param obs_interval_sec: lenght in seconds for each observation
-    :param obs_per_inj: number of observations during each injection
-    :param obs_between_inj: number of observations between each injection, marked as 'rest' in the log file
-    :param injectors: list of LoadInjectors to use for testing the system
-    :return: nothing is returned
     """
 
     # Checking of out_filename already exists: if yes, delete
@@ -122,12 +114,12 @@ def main(out_filename: str, obs_interval_sec: float, obs_per_inj: int, obs_betwe
         #for obs_count in tqdm(range(max_n_obs), desc='Monitor Progress Bar'):
         while True:
             if obs_left_to_change<=0 and inj_now is None:
-                # Start next Injection
+                # Start next Simulation
                 obs_left_to_change = obs_per_inj
-                if len(injectors) == 0: 
+                if len(simulators) == 0: 
                     break
-                inj_now = injectors.pop(0)
-                if verbose: print(f"{time.time()} | Injecting {inj_now.get_name()}|Inj remaining: {len(injectors)}")
+                inj_now = simulators.pop(0)
+                if verbose: print(f"{time.time()} | Simulating {inj_now.get_name()}|Remaining: {len(simulators)}")
                 inj_now.inject()
             elif obs_left_to_change<=0 and inj_now is not None:
                 # Pause from Injections
@@ -159,20 +151,20 @@ def main(out_filename: str, obs_interval_sec: float, obs_per_inj: int, obs_betwe
 
 if __name__ == '__main__':
     import pathlib
-    inj_json = str(pathlib.Path(__file__).parent.resolve()) + '/injectors_base.json'
-    time_step_sec = 0.5 # length of each monitoring step (in seconds)
-    obs_per_inj = 10 # number of observations for each injection
-    obs_between_inj = 10 # number of observations during rest phases
-    n_injectors = 20 # covers all cores + memory + disk stress tests
+    config_json = str(pathlib.Path(__file__).parent.resolve()) + '/simulation_config.json'
+    time_step_sec = 0.5 
+    obs_per_inj = 10 
+    obs_between_inj = 10 
+    n_sims = 25 
 
-    # Extracting definitions of injectors from input JSON
-    injectors = read_injectors(inj_json, 
+    # Extracting definitions from input JSON
+    simulators = read_scenarios(config_json, 
                             inj_duration=obs_per_inj*time_step_sec*1000,
-                            n_inj=n_injectors)
-    random.shuffle(injectors)
+                            n_inj=n_sims)
+    random.shuffle(simulators)
 
     main(out_filename=str(pathlib.Path(__file__).parent.resolve()) + '/output_folder/monitored_data.csv', 
         obs_interval_sec=time_step_sec,
         obs_per_inj=obs_per_inj,
         obs_between_inj=obs_between_inj,
-        injectors=injectors)
+        simulators=simulators)

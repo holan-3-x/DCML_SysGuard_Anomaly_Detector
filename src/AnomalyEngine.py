@@ -1,3 +1,7 @@
+"""
+AnomalyEngine.py: Real-time security dashboard and inference engine.
+Gathers live metrics and uses the best-trained AI model to detect potential threats.
+"""
 import datetime
 import pathlib
 import pandas as pd
@@ -7,7 +11,7 @@ import psutil
 import numpy as np
 import os
 from collections import deque
-from main_monitor_injector import monitor_system
+from DataCollector import monitor_system
 from sklearn.preprocessing import StandardScaler
 from joblib import load
 from rich.console import Console
@@ -68,25 +72,50 @@ def draw_graph(history, width=30, height=8):
         output.append(line)
     return "\n".join(output)
 
-def main(warning_threshold: int = 5, model_type: str = "rf"):
+def main(warning_threshold: int = 15, model_type: str = "best"):
     base_src = pathlib.Path(__file__).parent.resolve()
     
+    # 0. Sensitivity Adjustment: Using a higher window and threshold for M4 Pro stability
+    # If the user provides a threshold via CLI, we use it, otherwise use 15
     try:
         standard_scaler = load(str(base_src / 'standard_scaler.bin'))
-        if model_type == "rf":
-            model = load(str(base_src / 'random_forest.bin'))
-            model_name = "Random Forest"
-        elif model_type == "mlp":
-            model = load(str(base_src / 'mlp_network.bin'))
-            model_name = "MLP Neural Network"
-        elif model_type == "iso":
-            model = load(str(base_src / 'isolation_forest.bin'))
-            model_name = "Isolation Forest"
+        
+        # Load leaderboard for info
+        lb_path = base_src / 'analytics/leaderboard.json'
+        leaderboard = {}
+        if lb_path.exists():
+            with open(lb_path) as f:
+                leaderboard = json.load(f)
+
+        # Dynamic Loading
+        target_model_path = None
+        model_name = "Custom Model"
+
+        if model_type == "best":
+            target_model_path = base_src / 'best_model.bin'
+            model_name = "System Champion"
+        elif (base_src / f'archive/{model_type}.bin').exists():
+            target_model_path = base_src / f'archive/{model_type}.bin'
+            model_name = f"{model_type} (Archived)"
+        elif (base_src / f'{model_type}.bin').exists():
+            target_model_path = base_src / f'{model_type}.bin'
+            model_name = model_type
+        
+        if target_model_path and target_model_path.exists():
+            model = load(str(target_model_path))
         else:
-            model = load(str(base_src / 'best_model.bin'))
-            model_name = "Best Model (Auto-calibrated)"
+            # Fallback legacy check
+            legacy_map = {"rf": "RandomForest", "mlp": "NeuralNetwork", "iso": "IsolationForest"}
+            alt_name = legacy_map.get(model_type, model_type)
+            if (base_src / f'archive/{alt_name}.bin').exists():
+                model = load(str(base_src / f'archive/{alt_name}.bin'))
+                model_name = alt_name
+            else:
+                raise FileNotFoundError(f"Model {model_type} or {alt_name} not found in archive/ or root.")
+                
     except Exception as e:
-        console.print(f"[red]Error loading models: {e}. Did you retrain?[/red]")
+        console.print(f"[red]Error loading system: {e}.[/red]")
+        console.print("[yellow]Hint: Try 'RandomForest', 'NeuralNetwork', or 'IsolationForest' as the 2nd argument.[/yellow]")
         return
 
     warning_level = 0
@@ -127,14 +156,18 @@ def main(warning_threshold: int = 5, model_type: str = "rf"):
             confidence_history.append(prob)
 
             # 4. Update Warning Logic
-            if is_anomaly:
+            # 4. Update Warning Logic (Sensitivity Smoothing)
+            if is_anomaly and prob > 0.6: # Only increment if model is fairly sure
+                warning_level += 2
+            elif is_anomaly: # Low confidence anomaly
                 warning_level += 1
             else:
-                warning_level = max(warning_level - 1, 0)
+                # Faster cooldown on rest to avoid long "false" alarms
+                warning_level = max(warning_level - 3, 0)
 
             # 5. UI: Header
             layout["header"].update(Panel(
-                Text(f"🚀 M4 PRO SUPER-DETECTOR (CPU/RAM/DISK/NET) | {model_name}", justify="center", style="bold white on blue")
+                Text(f"🚀 M4 PRO HYPER-DETECTOR (CORE/MEM/IO/NET) | {model_name}", justify="center", style="bold white on blue")
             ))
 
             # 6. UI: CPU (Left Top)
@@ -182,11 +215,14 @@ def main(warning_threshold: int = 5, model_type: str = "rf"):
                 Text(f"System Optimized for M4 Pro | Press Ctrl+C to Stop", justify="center", style="dim italic")
             ))
 
-            time.sleep(0.4)
+            time.sleep(0.3)
 
 if __name__ == '__main__':
-    thresh = 5
-    m_type = "rf"
+    # Usage: AnomalyEngine.py [threshold] [model_name]
+    # Example: AnomalyEngine.py 15 best
+    # Example: AnomalyEngine.py 20 RandomForest
+    thresh = 20
+    m_type = "best"
     if len(sys.argv) > 1: thresh = int(sys.argv[1])
     if len(sys.argv) > 2: m_type = sys.argv[2]
     
