@@ -1,140 +1,125 @@
-# 🛡️ DCML 2025: Advanced Anomaly Detection System
+# 🛡️ DCML 2025: Advanced Anomaly Detection System (M4 Pro Optimized)
 
 **Submission for DCML 2025**
-*Optimized exclusively for **Apple MacBook Pro M4 Pro**. Support for other architectures is currently in development.*
+*An educational, industrial-grade anomaly detection system specifically optimized for Apple Silicon.*
 
 ![Dashboard Preview](docs/dashboard_preview.png)
-*(Run `python3 src/AnomalyEngine.py` to see the live dashboard)*
+*(Run `python3 src/AnomalyEngine.py` to see this live)*
+
+## 📜 License
+This project is open source and available under the [MIT License](LICENSE).
 
 ---
 
-## 📖 Project Overview
-This project implements a high-performance anomaly detection system designed to identify stress patterns (CPU, RAM, Disk, Network) on Apple Silicon. It features a dual-ecosystem approach: a flexible Python suit for inference and a high-speed C suite for telemetry.
+## 📖 Educational Overview
+This project is designed to teach and demonstrate **High-Performance Diagnostic Systems**. It uses a dual-ecosystem approach to show the strengths of different programming languages:
 
-> [!NOTE]
-> **Compatibility Warning**: This system uses `mach_host_self` syscalls specific to macOS ARM64. It is **NOT** compatible with Intel Macs, Linux, or Windows at this time.
+1.  **Python (The Brain)**: Used for complex logic, Machine Learning, and User Interfaces. It's easy to read and modify.
+2.  **C (The Muscle)**: Used for raw speed. It talks directly to the macOS Kernel to get data in microseconds.
 
 ---
 
-## ⚡ Quick Start (Stable V1)
-*This is the production-ready workflow used for the final report.*
+## 📂 "Teachable" File Structure
 
-### 1. Setup Environment
+We have organized the project to make it easy to learn from:
+
+### `src/` (The Python Ecosystem)
+Everything here is designed to be **Readable** and **Educational**.
+- **`DataCollector.py`**: The "Sensor". It gathers data from your computer.
+- **`ModelTrainer.py`**: The "Teacher". It uses **Extreme Benchmarking** to train 13+ AI models and pick the winner.
+- **`AnomalyEngine.py`**: The "Guard". It uses the trained brain to protect your Mac.
+- *[👉 Read the Python Guide here](src/README.md)*
+
+### `src_c/` (The C Hyper-Suite)
+Everything here is designed for **Performance**.
+- **`telemetry.c`**: Shows how to use System Calls.
+- **`engine.c`**: Shows how to build a UI in C.
+- *[👉 Read the Low-Level Systems Guide here](src_c/README.md)*
+
+### `src/experimental/` (The Laboratory)
+This is where we test new ideas (like "V2 Differential Telemetry"). It is separated so it doesn't break the main stable project.
+
+---
+
+## ⚡ Quick Start: The "Active" Workflow
+
+This project uses a **Virtual Environment (venv)** to ensure it runs perfectly on any Mac without messing up your system files.
+
+### 1. Setup the "Sandbox"
 ```bash
+# Create a secure area for our libraries
 python3 -m venv .venv
+
+# Activate the sandbox
 source .venv/bin/activate
+
+# Install the dependencies
 pip install -r requirements.txt
 ```
 
-### 2. Data Collection
-run the standard collector.
+### 2. Collect Data
+Let the system watch your computer for a while to learn.
 ```bash
 python3 src/DataCollector.py
 ```
 *Output: `src/output_folder/monitored_data.csv`*
 
-### 3. "Extreme Benchmarking" Training
-Trains **13+ Algorithms** to find the absolute best model for your specific workflow.
-Includes: *Random Forest, Isolation Forest, Neural Networks (MLP), Gradient Boosting, SVM (Linear/RBF), KNN, Naive Bayes, Logistic Regression, LDA, and Local Outlier Factor.*
-
+### 3. "Extreme Benchmarking" (Model Training)
+We don't just use Random Forest. This script trains **13+ Algorithms** (SVM, Neural Networks, Isolation Forest, etc.) and automatically selects the **Champion Model**.
 ```bash
 python3 src/ModelTrainer.py
 ```
-*Output: `src/best_model.bin` (Results archived in `src/archive/`)*
+*Output: `src/best_model.bin` (The Winner)*
 
-### 4. Real-Time Dashboard
-Launch the protection engine using the Champion Model.
+### 4. Launch the Dashboard
+Run the real-time protection engine.
 ```bash
 python3 src/AnomalyEngine.py 15 best
 ```
 
-> [!TIP]
-> **See it in action**: A demo GIF is available at `docs/dashboard_demo.gif`.
-
 ---
 
-## 🧪 Experimental (V2 - Beta)
-*V2 introduces "Differential Rate Telemetry" to solve long-term drift. It is currently experimental.*
+## 🧪 Simulation: Triggering Anomalies
+You can verify the system works by intentionally stressing your Mac.
 
-If you wish to test the new engine:
-1. Run `python3 src/DataCollector_v2.py` (Captures rates in KB/s)
-2. Run `python3 src/ModelTrainer_v2.py` (Trains V2 models)
-3. Run `python3 src/AnomalyEngine_v2.py` (V2 Dashboard)
-
----
-
-## 🏎️ C-Language Hyper-Suite
-*Autonomous, zero-dependency monitoring for the M4 Pro.*
-
-The C-Suite runs independently of Python.
+**Python Simulator (Easiest)**:
 ```bash
-cd src_c
-make
-./engine --calibrate  # Learn baseline
-./engine              # Run Dashboard
+python3 src/Validator.py cpu   # Stress 14 Cores
+python3 src/Validator.py ram   # Fill RAM
+```
+
+**C Simulator (Fastest)**:
+```bash
+cd src_c && make && ./simulator cpu
 ```
 
 ---
 
-## 📂 Project File Structure
-```graphql
-DCML_Project/
-├── src/                      # 🐍 Python Ecosystem (Stable)
-│   ├── AnomalyEngine.py      # MAIN DASHBOARD (V1)
-│   ├── DataCollector.py      # Telemetry Collector (Cumulative)
-│   ├── ModelTrainer.py       # Model Training (Random Forest)
-│   ├── Simulator.py          # Stress Injectors
-│   ├── Validator.py          # Verification Script
-│   ├── archive/              # Saved Models (.bin)
-│   └── analytics/            # Performance Graphs (.png)
-│
-├── src_c/                    # 🚀 C Hyper-Suite (Native)
-│   ├── engine.c              # C Dashboard
-│   ├── monitor.c             # Background Logger
-│   ├── simulator.c           # Native Load Injector
-│   └── telemetry.c           # Mach Kernel Syscalls
-│
-├── src/experimental/         # 🧪 V2 Ecosystem (Beta)
-│   ├── AnomalyEngine_v2.py
-│   ├── DataCollector_v2.py
-│   └── ModelTrainer_v2.py
-│
-└── requirements.txt
-```
+## 📚 Further Reading & References
+
+This project was built on the shoulders of giants. Here are the BEST resources to learn more:
+
+### 📖 Essential Books
+| Topic | Book | Why read it? |
+| :--- | :--- | :--- |
+| **Systems** | *Systems Performance* by **Brendan Gregg** | The "Bible" of understanding CPU, RAM, and Disk metrics. |
+| **ML** | *Hands-On Machine Learning* by **Aurélien Géron** | The best practical guide for `scikit-learn` and Neural Nets. |
+| **C Language** | *The C Programming Language* by **Kernighan & Ritchie** | The classic text for understanding memory and pointers. |
+| **Kernel** | *Mac OS X Internals* by **Amit Singh** | Deep dive into the Mach Kernel and XNU. |
+
+### 🔗 "Awesome" Repositories
+- [awesome-machine-learning](https://github.com/josephmisiti/awesome-machine-learning): A curated list of ML frameworks.
+- [awesome-python](https://github.com/vinta/awesome-python): Best Python libraries for every task.
+- [awesome-c](https://github.com/oz123/awesome-c): Frameworks and libraries for C developers.
+
+### 📄 Academic Papers
+- **Random Forest**: Breiman, L. (2001). "Random Forests". *Machine Learning*, 45(1), 5-32.
+- **Isolation Forest**: Liu, F., Ting, K. M., & Zhou, Z. H. (2008). "Isolation Forest". *ICDM*.
+- **XGBoost**: Chen, T., & Guestrin, C. (2016). "XGBoost: A Scalable Tree Boosting System".
+
+### 🍎 Apple Documentation
+- [Mach Kernel Programming Guide](https://developer.apple.com/library/archive/documentation/Darwin/Conceptual/KernelProgramming/): Official guide to `mach_host_statistics`.
+- [Apple Silicon CPU Optimization Guide](https://developer.apple.com/documentation/apple-silicon/tuning-your-code-s-performance-for-apple-silicon): How to write code for M-series chips.
 
 ---
-
-## 🔄 System Interaction Graph
-
-How the components talk to each other to protect your Mac:
-
-```mermaid
-graph TD
-    A[MacBook M4 Pro] -->|Syscalls| B(DataCollector.py)
-    B -->|CSV Data| C{ModelTrainer.py}
-    C -->|Trains| D[best_model.bin]
-    A -->|Live Metrics| E(AnomalyEngine.py)
-    D -->|Inference| E
-    E -->|Alerts| F[Dashboard UI]
-    
-    subgraph "Simulation / Testing"
-    G[Simulator.py] -->|Injects Stress| A
-    end
-```
-
-### How it works
-1.  **Simulator**: Injects artificial stress (e.g., occupies 8GB RAM).
-2.  **Collector**: Reads hardware counters (CPU ticks, RAM pages).
-3.  **Trainer**: Learns what "Stress" looks like vs "Idle".
-4.  **Engine**: Watches live data and compares it to the learned model.
-
----
-
-## 📚 References
-1.  **Project Standard**: `DCML 2025 Submission Guidelines`.
-2.  **Kernel**: *Mach Kernel Programming Guide* (Apple Inc).
-3.  **Algorithm**: *Isolation Forest* (Liu et al, 2008), *Random Forest* (Breiman, 2001).
-4.  **Hardware**: *Apple Silicon M4 Pro Architecture Overview*.
-
----
-*Developed by Holan for DCML 2025.*
+*Created by Holan for DCML 2025.*
