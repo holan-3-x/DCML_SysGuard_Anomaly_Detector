@@ -77,28 +77,40 @@ def draw_graph(history, width=30, height=8):
     return "\n".join(output)
 def identify_root_cause(X_scaled, features) -> str:
     """
-    Sums absolute z-scores per category with heuristic weighting.
+    Calculates the mean absolute deviation per category to find the dominant cause.
+    This prevents categories with many features (like CPU) from overpowering others.
     """
     vals = np.abs(X_scaled[0])
-    sums = {"CPU": 0.0, "MEMORY": 0.0, "DISK": 0.0, "NETWORK": 0.0}
+    
+    categories = {
+        "MEMORY": [],
+        "DISK": [],
+        "NETWORK": [],
+        "CPU": []
+    }
     
     for i, name in enumerate(features):
         name = name.lower()
         v = vals[i]
         
         if 'virtual' in name or 'swap' in name or 'mem' in name:
-            sums["MEMORY"] += v
+            categories["MEMORY"].append(v)
         elif 'disk' in name:
-            # Disk spikes are less common than CPU, favor them slightly less in tie-breakers
-            sums["DISK"] += v * 0.8 
+            categories["DISK"].append(v)
         elif 'net' in name:
-            # Network is highly volatile, give it a lower weight to avoid false claims
-            sums["NETWORK"] += v * 0.5
+            categories["NETWORK"].append(v)
         else:
-            # Core loads/times are direct evidence of CPU stress
-            sums["CPU"] += v * 1.5 
+            categories["CPU"].append(v)
             
-    return max(sums, key=sums.get)
+    # Calculate means
+    scores = {}
+    for cat, v_list in categories.items():
+        if v_list:
+            scores[cat] = np.mean(v_list)
+        else:
+            scores[cat] = 0.0
+            
+    return max(scores, key=scores.get)
 
 def check_keys(active_filters):
     """

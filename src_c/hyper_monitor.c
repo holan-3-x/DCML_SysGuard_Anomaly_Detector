@@ -1,111 +1,62 @@
 #include "common.h"
+#include "telemetry.h"
 #include <ifaddrs.h>
-#include <mach/mach.h>
-#include <mach/mach_host.h>
-#include <mach/processor_info.h>
 #include <net/if.h>
 #include <net/if_dl.h>
-#include <net/if_types.h>
 #include <net/if_var.h>
-#include <sys/sysctl.h>
 
-static processor_cpu_load_info_t prev_cpu_load = NULL;
-static mach_msg_type_number_t prev_cpu_msg_count = 0;
+static uint64_t prev_net_in = 0;
+static uint64_t prev_net_out = 0;
+static double prev_time = 0;
 
-void get_cpu_stats(SystemStats *stats) {
-  processor_cpu_load_info_t cpu_load;
-  mach_msg_type_number_t cpu_msg_count;
-  natural_t processor_count;
-
-  kern_return_t kr = host_processor_info(
-      mach_host_self(), PROCESSOR_CPU_LOAD_INFO, &processor_count,
-      (processor_info_array_t *)&cpu_load, &cpu_msg_count);
-  if (kr != KERN_SUCCESS)
-    return;
-
-  if (prev_cpu_load != NULL) {
-    double total_all = 0;
-    for (int i = 0; i < (int)processor_count && i < MAX_CORES; i++) {
-      uint64_t user = cpu_load[i].cpu_ticks[CPU_STATE_USER] -
-                      prev_cpu_load[i].cpu_ticks[CPU_STATE_USER];
-      uint64_t system = cpu_load[i].cpu_ticks[CPU_STATE_SYSTEM] -
-                        prev_cpu_load[i].cpu_ticks[CPU_STATE_SYSTEM];
-      uint64_t idle = cpu_load[i].cpu_ticks[CPU_STATE_IDLE] -
-                      prev_cpu_load[i].cpu_ticks[CPU_STATE_IDLE];
-      uint64_t total = user + system + idle;
-
-      if (total > 0) {
-        stats->cpu_load[i] = (double)(user + system) / total * 100.0;
-        total_all += stats->cpu_load[i];
+void get_io_stats(SystemStats *stats, double dt) {
+  struct ifaddrs *ifa_list, *ifa;
+  uint64_t ibytes = 0, obytes = 0;
+  if (getifaddrs(&ifa_list) != -1) {
+    for (ifa = ifa_list; ifa; ifa = ifa->ifa_next) {
+      if (ifa->ifa_addr->sa_family == AF_LINK) {
+        struct if_data *ifd = (struct if_data *)ifa->ifa_data;
+        ibytes += ifd->ifi_ibytes;
+        obytes += ifd->ifi_obytes;
       }
     }
-    stats->cpu_total_load = total_all / processor_count;
-    vm_deallocate(mach_task_self(), (vm_address_t)prev_cpu_load,
-                  prev_cpu_msg_count * sizeof(int));
+    freeifaddrs(ifa_list);
   }
-  prev_cpu_load = cpu_load;
-  prev_cpu_msg_count = cpu_msg_count;
-}
-
-void get_mem_stats(SystemStats *stats) {
-  vm_size_t page_size;
-  mach_port_t host_port = mach_host_self();
-  mach_msg_type_number_t count = HOST_VM_INFO64_COUNT;
-  vm_statistics64_data_t vm_stats;
-  host_page_size(host_port, &page_size);
-  if (host_statistics64(host_port, HOST_VM_INFO64, (host_info64_t)&vm_stats,
-                        &count) == KERN_SUCCESS) {
-    uint64_t free_mem = (uint64_t)vm_stats.free_count * page_size;
-    uint64_t active_mem = (uint64_t)vm_stats.active_count * page_size;
-    uint64_t inactive_mem = (uint64_t)vm_stats.inactive_count * page_size;
-    uint64_t wire_mem = (uint64_t)vm_stats.wire_count * page_size;
-    stats->mem_used = active_mem + inactive_mem + wire_mem;
-    stats->mem_free = free_mem;
-    stats->mem_percent =
-        (double)stats->mem_used / (stats->mem_used + stats->mem_free) * 100.0;
+  if (prev_net_in > 0 && dt > 0) {
+    stats->net_in_bytes = (ibytes - prev_net_in) / dt;
+    stats->net_out_bytes = (obytes - prev_net_out) / dt;
+    stats->net_load_score =
+        (double)(stats->net_in_bytes + stats->net_out_bytes) / 1024.0;
   }
-}
-
-void get_net_stats(SystemStats *stats) {
-  struct ifaddrs *ifa_list, *ifa;
-  if (getifaddrs(&ifa_list) < 0)
-    return;
-  uint64_t ibytes = 0, obytes = 0;
-  for (ifa = ifa_list; ifa; ifa = ifa->ifa_next) {
-    if (ifa->ifa_addr->sa_family == AF_LINK) {
-      struct if_data *ifd = (struct if_data *)ifa->ifa_data;
-      ibytes += ifd->ifi_ibytes;
-      obytes += ifd->ifi_obytes;
-    }
-  }
-  stats->net_in = ibytes;
-  stats->net_out = obytes;
-  freeifaddrs(ifa_list);
+  prev_net_in = ibytes;
+  prev_net_out = obytes;
 }
 
 int main() {
-  printf("🚀 Starting C-HyperMonitor-v2 (Multi-Category)...\n");
-  FILE *f = fopen("monitored_data_c_v2.csv", "w");
-  fprintf(
-      f,
-      "Timestamp,UserReadTime,CPU_Total,Mem_Percent,Net_In,Net_Out,Injector\n");
+  printf("🚀 C-HyperMonitor: Starting Data Collection Loop...\n");
+  FILE *f = fopen(DATA_FILE, "w");
+  fprintf(f,
+          "Timestamp,UserReadTime,CPU_Total,Mem_Percent,Net_KBps,Injector\n");
   SystemStats stats;
   memset(&stats, 0, sizeof(stats));
   strcpy(stats.injector, "rest");
-  for (int i = 0; i < 50; i++) {
-    time_t now = time(NULL);
-    strftime(stats.user_read_time, 32, "%Y-%m-%d %H:%M:%S", localtime(&now));
-    stats.timestamp = (double)now;
+  while (1) {
+    double now = (double)time(NULL);
+    double dt = (prev_time > 0) ? now - prev_time : 0.5;
     get_cpu_stats(&stats);
     get_mem_stats(&stats);
-    get_net_stats(&stats);
-    printf("[%s] CPU: %.1f%% | RAM: %.1f%% | Net: %.1fMB | Cause: %s\n",
+    get_io_stats(&stats, dt);
+    time_t t = (time_t)now;
+    strftime(stats.user_read_time, 32, "%Y-%m-%d %H:%M:%S", localtime(&t));
+    printf("\r[%s] CPU: %.1f%% | RAM: %.1f%% | Net: %.1f KB/s",
            stats.user_read_time, stats.cpu_total_load, stats.mem_percent,
-           (double)stats.net_in / 1e6, stats.injector);
-    fprintf(f, "%.3f,%s,%.2f,%.2f,%llu,%llu,%s\n", stats.timestamp,
-            stats.user_read_time, stats.cpu_total_load, stats.mem_percent,
-            stats.net_in, stats.net_out, stats.injector);
+           stats.net_load_score);
+    fflush(stdout);
+    fprintf(f, "%.3f,%s,%.2f,%.2f,%.2f,%s\n", now, stats.user_read_time,
+            stats.cpu_total_load, stats.mem_percent, stats.net_load_score,
+            stats.injector);
     fflush(f);
+    prev_time = now;
     usleep(500000);
   }
   fclose(f);
