@@ -14,6 +14,10 @@ from collections import deque
 from DataCollector import monitor_system
 from sklearn.preprocessing import StandardScaler
 from joblib import load
+import json
+import threading
+import sys
+import select
 from rich.console import Console
 from rich.layout import Layout
 from rich.panel import Panel
@@ -71,6 +75,30 @@ def draw_graph(history, width=30, height=8):
             else: line += " "
         output.append(line)
     return "\n".join(output)
+def identify_root_cause(X_scaled, features) -> str:
+    """
+    Finds which category has the highest deviation (simple feature importance).
+    """
+    # X_scaled is 1D array of scaled values
+    abs_scaled = np.abs(X_scaled[0])
+    max_idx = np.argmax(abs_scaled)
+    feature_name = features[max_idx].lower()
+    
+    if 'virtual' in feature_name or 'swap' in feature_name: return "MEMORY"
+    if 'disk' in feature_name: return "DISK"
+    if 'net' in feature_name: return "NETWORK"
+    return "CPU"
+
+def check_keys(active_filters):
+    """
+    Non-blocking check for keypresses to toggle filters
+    """
+    if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
+        key = sys.stdin.read(1).lower()
+        if key == 'c': active_filters['CPU'] = not active_filters['CPU']
+        elif key == 'r': active_filters['MEM'] = not active_filters['MEM']
+        elif key == 'd': active_filters['DISK'] = not active_filters['DISK']
+        elif key == 'n': active_filters['NET'] = not active_filters['NET']
 
 def main(warning_threshold: int = 15, model_type: str = "best"):
     base_src = pathlib.Path(__file__).parent.resolve()
@@ -121,11 +149,24 @@ def main(warning_threshold: int = 15, model_type: str = "best"):
     warning_level = 0
     confidence_history = deque(maxlen=40)
     
+    # Selective Monitoring Filters
+    active_filters = {"CPU": True, "MEM": True, "DISK": True, "NET": True}
+    root_cause = "NORMAL"
+    
     layout = create_layout()
     
-    with Live(layout, refresh_per_second=4, screen=True):
-        while True:
-            # 1. Capture Data
+    # Prepare terminal for non-blocking keys
+    import tty, termios
+    old_settings = termios.tcgetattr(sys.stdin)
+    tty.setcbreak(sys.stdin.fileno())
+
+    try:
+        with Live(layout, refresh_per_second=4, screen=True):
+            while True:
+                # 0. Check for filter toggles
+                check_keys(active_filters)
+
+                # 1. Capture Data
             raw_data = monitor_system()
             
             # 2. Preprocess (Scale only features seen during training)
@@ -154,20 +195,25 @@ def main(warning_threshold: int = 15, model_type: str = "best"):
                 prob = 1.0 if is_anomaly else 0.0
 
             confidence_history.append(prob)
+            root_cause = "CLEAN" if not is_anomaly else identify_root_cause(X_scaled, scaler_cols)
 
-            # 4. Update Warning Logic
-            # 4. Update Warning Logic (Sensitivity Smoothing)
-            if is_anomaly and prob > 0.6: # Only increment if model is fairly sure
+            # 4. Update Warning Logic (Sensitivity Smoothing + Selective Muting)
+            # If the cause category is MUTED, we ignore the anomaly
+            if is_anomaly:
+                if root_cause == "CPU" and not active_filters['CPU']: is_anomaly = False
+                elif root_cause == "MEMORY" and not active_filters['MEM']: is_anomaly = False
+                elif root_cause == "DISK" and not active_filters['DISK']: is_anomaly = False
+                elif root_cause == "NETWORK" and not active_filters['NET']: is_anomaly = False
+
+            if is_anomaly and prob > 0.6: 
                 warning_level += 2
-            elif is_anomaly: # Low confidence anomaly
+            elif is_anomaly: 
                 warning_level += 1
             else:
-                # Faster cooldown on rest to avoid long "false" alarms
                 warning_level = max(warning_level - 3, 0)
 
-            # 5. UI: Header
             layout["header"].update(Panel(
-                Text(f"🚀 M4 PRO HYPER-DETECTOR (CORE/MEM/IO/NET) | {model_name}", justify="center", style="bold white on blue")
+                Text(f"🚀 M4 PRO HYPER-DETECTOR | {model_name} | {root_cause}", justify="center", style="bold white on blue")
             ))
 
             # 6. UI: CPU (Left Top)
@@ -179,7 +225,8 @@ def main(warning_threshold: int = 15, model_type: str = "best"):
                 if i+1 < len(cpu_percents):
                     row.append(f"C{i+1:02d}: {draw_bar(cpu_percents[i+1], width=12)}")
                 cpu_table.add_row(*row)
-            layout["cpu"].update(Panel(cpu_table, title="CPU Performance"))
+            cpu_title = f"CPU Performance [{'GREEN' if active_filters['CPU'] else 'RED'}]"
+            layout["cpu"].update(Panel(cpu_table, title=cpu_title, border_style="green" if active_filters['CPU'] else "dim"))
 
             # 7. UI: IO & Storage (Left Bottom)
             io_table = Table(box=None, expand=True, show_header=False)
@@ -193,7 +240,8 @@ def main(warning_threshold: int = 15, model_type: str = "best"):
             io_table.add_row("Disk R/W:", f"[cyan]{disk_io.read_bytes/1e6:,.1f}MB[/] / [magenta]{disk_io.write_bytes/1e6:,.1f}MB[/]")
             io_table.add_row("Net S/R:", f"[green]{net_io.bytes_sent/1e6:,.1f}MB[/] / [yellow]{net_io.bytes_recv/1e6:,.1f}MB[/]")
             
-            layout["io"].update(Panel(io_table, title="RAM / Storage / Network"))
+            io_title = f"RAM / IO / NET [{'GREEN' if all([active_filters['MEM'], active_filters['DISK'], active_filters['NET']]) else 'YELLOW'}]"
+            layout["io"].update(Panel(io_table, title=io_title))
 
             # 8. UI: Status (Right Top)
             status_style = "bold blink white on red" if warning_level > warning_threshold else "bold green"
@@ -202,6 +250,7 @@ def main(warning_threshold: int = 15, model_type: str = "best"):
             status_panel = Text("\n" * 1, justify="center")
             status_panel.append(f"{status_text}\n\n", style=status_style)
             status_panel.append(f"Threat Level: {warning_level}\n", style="bold yellow" if is_anomaly else "white")
+            status_panel.append(f"Cause: {root_cause}\n", style="bold magenta" if is_anomaly else "dim")
             status_panel.append(f"Conf: {prob:.1%}", style="dim")
             
             layout["status"].update(Panel(status_panel, title="Security Status", border_style="red" if is_anomaly else "green"))
@@ -212,10 +261,13 @@ def main(warning_threshold: int = 15, model_type: str = "best"):
 
             # 10. UI: Footer
             layout["footer"].update(Panel(
-                Text(f"System Optimized for M4 Pro | Press Ctrl+C to Stop", justify="center", style="dim italic")
+                Text(f"Toggles: [C]PU [R]am [D]isk [N]et | Press Ctrl+C to Stop", justify="center", style="bold cyan")
             ))
 
             time.sleep(0.3)
+
+    finally:
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
 
 if __name__ == '__main__':
     # Usage: AnomalyEngine.py [threshold] [model_name]

@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.env
+
+# C Binaries & Objects
+src_c/monitor
+src_c/simulator
+src_c/engine
+*.o
+*.out
+
+# Data & Models (Heavy Files)
+**/output_folder/*.csv
+**/monitored_data_c.csv
+**/archive/*.bin
+**/archive/*.pkl
+best_model.bin
+standard_scaler.bin
+
+# Analytics & Reports
+src/analytics/*.png
+src/analytics/*.json
+src/analytics/*.md
+
+# Temporary / Logs
+*.log
+*.tmp
+.DS_Store
+
+# User-specific / Local
+.vscode/
+.idea/

@@ -39,23 +39,61 @@ Benchmarking 13+ architectures (Supervised/Unsupervised).
 ```
 *Creates: All models in `src/archive/` (as .bin) and visual leaderboard in `src/analytics/`*
 
-### Step 3: Deployment (Real-time Dashboard)
+# Deployment (Real-time Dashboard)
 ```bash
-# Auto-calibrated mode (Uses the Champion model from training)
 ./.venv/bin/python3 src/AnomalyEngine.py 15 best
-
-# Specific model mode (e.g. RandomForest, NeuralNetwork, IsolationForest)
-./.venv/bin/python3 src/AnomalyEngine.py 20 RandomForest
 ```
+### Dashboard Interactive Keys:
+- **`C`**: Toggle CPU Muting
+- **`R`**: Toggle RAM Muting
+- **`D`**: Toggle Disk Muting
+- **`N`**: Toggle Network Muting
+*Use these to "shutdown" detection for parts of the system.*
 
 ### Step 4: Verification (Trigger Simulation)
 In a separate terminal, run these to verify detection:
 ```bash
-./.venv/bin/python3 src/Validator.py cpu   # High CPU Load
-./.venv/bin/python3 src/Validator.py ram   # Aggressive Memory Allocation
-./.venv/bin/python3 src/Validator.py disk  # High IO Throughput
-./.venv/bin/python3 src/Validator.py net   # Multi-threaded Network Traffic
+# Python Version (Ease of Use)
+./.venv/bin/python3 src/Validator.py cpu
+
+# C Version (High Performance)
+cd src_c && ./simulator cpu
 ```
+
+---
+
+## ⚡ Python vs C Implementation
+
+| Feature | Python (Standard) | C (Hyper-Suite) |
+| :--- | :--- | :--- |
+| **Speed** | 10-50ms latency | **<1ms latency** |
+| **Overhead** | Medium (Interpreter) | **Microscopic (Static)** |
+| **ML Training**| **Rich Ecosystem** | Difficult |
+| **Telemetry** | Higher Level (psutil) | **Direct Syscalls** |
+
+### Which one to use?
+- Use **Python** for development, training, and building complex AI models.
+- Use **C** for production monitoring where every microsecond and CPU cycle counts.
+
+---
+
+## 📂 Industrial Structure
+- `src/`: The Python ecosystem (Inference, Training, UI).
+- `src_c/`: The C ecosystem (Performance, Syscalls, Speed).
+- `src/simulation_config.json`: Shared configuration for scenarios.
+
+---
+
+## 🎓 How it works: Teach Me!
+
+If you are new to Anomaly Detection on macOS, here is the secret sauce:
+
+1.  **Direct Syscalls (The C Side)**: Instead of asking Python to ask the OS for CPU info, our C code talks directly to the **Mach Kernel** (`mach/mach.h`). This is how Activity Monitor works. It's the fastest way to get data without slowing down your M4 Pro core.
+2.  **The AI Brain (The Python Side)**: C is fast but "dumb". Python is "smart". We use Python to look at thousands of data points and find the **F1-Score Champion**. We then save that "Gold Model" as a `.bin` file.
+3.  **The Threshold (The Detector)**:
+    - **Anomaly Score**: We don't just alert on one spike. We use a **trailing window**. If the last 5 seconds look suspicious, the "Threat Level" rises.
+    - **Muting**: We added **Selective Monitoring**. If you press `C` in the dashboard, the system ignores CPU spikes but keeps watching RAM. This prevents false alarms when you know you're doing heavy work.
+4.  **ARM Optimization**: Your M4 Pro has P-cores (Performance) and E-cores (Efficiency). Our simulators specifically target the **M-series memory controller** using **Vectorized NumPy** (Python) and **Direct Mapped Memory** (C) to ensure the stress test is realistic.
 
 ---
 

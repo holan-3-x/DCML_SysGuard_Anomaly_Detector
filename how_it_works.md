@@ -8,42 +8,48 @@ This document outlines the engineering principles and architectural design of th
 The system utilizes a **Telemetry-Driven Model Pipeline**:
 
 ### A. Telemetry Gathering (DataCollector.py)
-Standard kernel monitoring is insufficient for 14-core ARM architectures. Our **DataCollector** captures a multi-dimensional feature set every 500ms:
+Our **DataCollector** captures a multi-dimensional feature set every 500ms:
 - **Core-Grained CPU**: Individual usage of all 14 cores to detect pin-point anomalies.
 - **Aggressive RAM Monitoring**: Tracking virtual vs physical footprint.
 - **IO Throughput**: Real-time read/write speeds, optimized for fast NVMe storage.
 - **Network Congestion**: Socket counts and packet flow.
 
 ### B. High-Fidelity Simulation (Simulator.py)
-To generate reliable labels, the **Simulator** uses ARM-compatible stress patterns:
-- **NumPy Parallelism**: Memory stress uses vectorized allocations to saturate the M4 memory controller.
-- **Threaded Network Bursts**: Simulates multi-client traffic spikes via concurrent fetchers.
-- **Async Disk Bursts**: Large block writes (50MB+) to stress the integrated storage controller.
+The **Simulator** generates reliable labels using ARM-compatible stress patterns:
+- **NumPy Parallelism**: Vectorized memory saturation.
+- **Threaded Network Bursts**: Concurrent fetchers for traffic spikes.
+- **Async Disk Bursts**: Large block writes (50MB+).
 
 ---
 
 ## 2. Machine Learning Logic (ModelTrainer.py)
-We treat anomaly detection as a **Binary Classification Problem** but evaluate it against 13 different architectures:
-
-1.  **Feature Normalization**: Using `StandardScaler` to ensure features with large ranges (like bytes) don't overpower percentage-based features (like core load).
-2.  **Cross-Architecture Benchmarking**: We train everything from **Random Forests** (robust/fast) to **Multi-Layer Perceptrons** (deep pattern recognition) and **Isolation Forests** (unsupervised).
-3.  **Gold-Model Selection**: The system automatically archives all models and selects the "Champion" based on the highest **F1-Score**, ensuring the best balance between precision and recall.
+We evaluate detection against 13+ architectures:
+1.  **Feature Normalization**: Using `StandardScaler` to balance core load vs byte metrics.
+2.  **Cross-Architecture Benchmarking**: Training Random Forests, MLP Networks, and Isolation Forests.
+3.  **Gold-Model Selection**: Automatic ranking based on the highest **F1-Score**.
 
 ---
 
-## 3. Real-time Inference Engine (AnomalyEngine.py)
-When the dashboard is running, it performs the following cycle:
-1.  **Stream Data**: Grabs a packet from the `monitor_system()` function.
-2.  **Vectorize**: Aligns the data with the features used during training.
-3.  **Predict**: Feeds the vector into the `.bin` model files.
-4.  **Confidence Smoothing**: Uses a trailing window to calculate an "Anomaly Score", reducing false positives from sudden M4 Pro performance boosts.
+## 3. Advanced Real-time Features (AnomalyEngine.py)
+
+### 🧩 Root Cause Inference
+When an anomaly is detected, the system calculates which feature group has the highest deviation from the "Normal" baseline. The dashboard will display the **Probable Cause** (CPU, MEM, DISK, or NETWORK) in the security panel.
+
+### 🔇 Selective Monitoring (Muting)
+To prevent false alarms during high-usage work (like video editing or compiling code), you can **shutdown** detection for specific subsystems using interactive keyboard toggles:
+- **`C`**: Toggle CPU Monitoring
+- **`R`**: Toggle RAM Monitoring
+- **`D`**: Toggle Disk Monitoring
+- **`N`**: Toggle Network Monitoring
+
+If a subsystem is MUTED, the system will ignore anomalies caused by that part while still showing you the live performance stats.
 
 ---
 
 ## 4. Why this System is "Better"
-- **Leading Columns**: As requested, all data exports put `Timestamp` and `UserReadTime` first for human auditability in Excel/CSV.
-- **M4 Pro Aware**: Unlike standard generic detectors, this system is aware of the core count and the aggressive memory management of macOS Sequoia.
-- **Transparent Analytics**: Every training cycle generates a visual leaderboard so you can see why the system chose a specific "Best Model".
+- **Leading Columns**: `Timestamp` and `UserReadTime` come first in all exports.
+- **M4 Pro Native**: Aware of core counts and ARM memory management.
+- **Transparent Analytics**: Visual leaderboard generated after every training.
 
 ---
 *Reference: DCML 2025 Architectural Documentation.*
