@@ -149,7 +149,7 @@
 >
 > Third, the dual-ecosystem approach—Python for intelligent ML and C for high-performance verification—provides both flexibility and rigor.
 >
-> **Future Work** includes extending the system to Linux and Windows platforms, implementing GPU monitoring for Apple Neural Engine workloads, and exploring online learning for adaptive baseline adjustment.
+> **Future Work** includes extending the system to Linux and Windows platforms, implementing GPU monitoring for Apple Neural Engine workloads, and exploring Deep Learning architectures (like LSTMs) for temporal pattern recognition.
 >
 > Thank you for your attention. The complete source code and documentation are available in the project repository."
 

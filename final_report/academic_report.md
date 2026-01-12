@@ -249,37 +249,29 @@ To validate the ML-based approach and demonstrate platform-native performance, a
 
 ### 4.2 Mach Kernel Integration
 
-The C implementation bypasses Python's abstraction layer and communicates directly with the macOS Mach Kernel:
+### 4.2 Mach Kernel Integration (Verification Layer)
+
+The C implementation serves as a **verification layer** to validate the Python ML results. It bypasses the Python interpreter overhead to provide a "ground truth" performance baseline.
 
 ```c
 #include <mach/mach.h>
 
-kern_return_t get_cpu_load(float* cpu_percentages) {
-    host_t host = mach_host_self();
-    processor_cpu_load_info_t cpu_load;
+// Direct Mach Kernel Syscall to read CPU Load
+kern_return_t get_cpu_telemetry(host_t host, processor_cpu_load_info_t *cpu_load) {
     mach_msg_type_number_t cpu_count;
     natural_t processor_count;
     
-    kern_return_t kr = host_processor_info(
+    return host_processor_info(
         host,
         PROCESSOR_CPU_LOAD_INFO,
         &processor_count,
-        (processor_info_array_t *)&cpu_load,
+        (processor_info_array_t *)cpu_load,
         &cpu_count
     );
-    
-    if (kr == KERN_SUCCESS) {
-        for (int i = 0; i < processor_count; i++) {
-            unsigned int total = cpu_load[i].cpu_ticks[CPU_STATE_USER]
-                               + cpu_load[i].cpu_ticks[CPU_STATE_SYSTEM]
-                               + cpu_load[i].cpu_ticks[CPU_STATE_IDLE];
-            unsigned int used = total - cpu_load[i].cpu_ticks[CPU_STATE_IDLE];
-            cpu_percentages[i] = (float)used / total * 100.0;
-        }
-    }
-    return kr;
 }
 ```
+
+This low-level access allows us to confirm that the anomalies detected by our Python models correspond to actual kernel-level events, ruling out interpreter artifacts.
 
 ### 4.3 Statistical Detection Engine
 
@@ -453,6 +445,49 @@ DCML_Project/
 │   └── *.png                     # Figures
 │
 └── requirements.txt              # Python dependencies
+```
+
+---
+
+## Appendix C: Project Reproduction & Execution Guide
+
+The following steps detail exactly "how it is done" to reproduce the experimental results.
+
+### Step 1: Environment Setup
+To ensure reproducibility and isolation, a Python virtual environment is used:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Step 2: Data Collection (The Learning Phase)
+We gather telemetry to build the dataset. This script runs for approximately 60-120 seconds covering all stress states.
+```bash
+python3 src/DataCollector.py
+# Output: src/output_folder/monitored_data.csv
+```
+
+### Step 3: Model Verification (The Training Phase)
+The system trains all 13 models and generates the leaderboard. This confirms which algorithm performs best on the collected data.
+```bash
+python3 src/ModelTrainer.py
+# Output: src/best_model.bin (Champion Model)
+# Output: src/analytics/leaderboard.json
+```
+
+### Step 4: Real-Time Deployment (The Inference Phase)
+The `AnomalyEngine` loads the saved champion model and standard scaler to perform live detection.
+```bash
+python3 src/AnomalyEngine.py
+```
+
+### Step 5: Validation (Stress Injection)
+In a separate terminal, we simulate different attacks to verify detection accuracy.
+```bash
+python3 src/Validator.py cpu   # Simulates CPU exhaustion
+python3 src/Validator.py ram   # Simulates Memory leaks
+python3 src/Validator.py disk  # Simulates I/O flooding
 ```
 
 ---
