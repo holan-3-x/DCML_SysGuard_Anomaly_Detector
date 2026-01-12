@@ -11,7 +11,8 @@ import psutil
 import numpy as np
 import os
 from collections import deque
-from DataCollector import monitor_system
+# Import V2 Collector from local directory
+from .DataCollector_v2 import monitor_system_v2 as monitor_system
 from sklearn.preprocessing import StandardScaler
 from joblib import load
 import json
@@ -77,28 +78,46 @@ def draw_graph(history, width=30, height=8):
     return "\n".join(output)
 def identify_root_cause(X_scaled, features) -> str:
     """
-    Sums absolute z-scores per category with heuristic weighting.
+    Groups features into categories and calculates the mean absolute deviation (Z-score).
+    This ensures that categories with fewer features (like Memory) are weighted fairly 
+    against categories with many features (like CPU cores).
     """
     vals = np.abs(X_scaled[0])
-    sums = {"CPU": 0.0, "MEMORY": 0.0, "DISK": 0.0, "NETWORK": 0.0}
+    
+    categories = {
+        "MEMORY": [],
+        "DISK": [],
+        "NETWORK": [],
+        "CPU": []
+    }
     
     for i, name in enumerate(features):
         name = name.lower()
         v = vals[i]
         
-        if 'virtual' in name or 'swap' in name or 'mem' in name:
-            sums["MEMORY"] += v
+        # Categorization logic (Robust for both V1 and V2 column names)
+        if any(kw in name for kw in ['virtual', 'swap', 'mem_']):
+            categories["MEMORY"].append(v)
         elif 'disk' in name:
-            # Disk spikes are less common than CPU, favor them slightly less in tie-breakers
-            sums["DISK"] += v * 0.8 
+            categories["DISK"].append(v)
         elif 'net' in name:
-            # Network is highly volatile, give it a lower weight to avoid false claims
-            sums["NETWORK"] += v * 0.5
+            categories["NETWORK"].append(v)
         else:
-            # Core loads/times are direct evidence of CPU stress
-            sums["CPU"] += v * 1.5 
+            # Fallback for CPU (cores, load, user, system, idle, freq)
+            categories["CPU"].append(v)
             
-    return max(sums, key=sums.get)
+    # Calculate Mean Deviation per Category
+    scores = {}
+    for cat, v_list in categories.items():
+        if v_list:
+            # Use max(v_list) for slightly more aggressive detection on spikes
+            # combined with mean to stabilize.
+            scores[cat] = (np.mean(v_list) * 0.7) + (np.max(v_list) * 0.3)
+        else:
+            scores[cat] = 0.0
+            
+    # Return the category with the highest "normalized stress"
+    return max(scores, key=scores.get)
 
 def check_keys(active_filters):
     """
@@ -113,14 +132,16 @@ def check_keys(active_filters):
 
 def main(warning_threshold: int = 15, model_type: str = "best"):
     base_src = pathlib.Path(__file__).parent.resolve()
+    # Go to parent src/ for shared assets or archive_v2
+    root_src = base_src.parent
     
-    # 0. Sensitivity Adjustment: Using a higher window and threshold for M4 Pro stability
-    # If the user provides a threshold via CLI, we use it, otherwise use 15
+    # 0. Sensitivity Adjustment
     try:
-        standard_scaler = load(str(base_src / 'standard_scaler.bin'))
+        # Load V2 scaler from parent root
+        standard_scaler = load(str(root_src / 'standard_scaler_v2.bin'))
         
-        # Load leaderboard for info
-        lb_path = base_src / 'analytics/leaderboard.json'
+        # Load leaderboard
+        lb_path = root_src / 'analytics_v2/leaderboard.json'
         leaderboard = {}
         if lb_path.exists():
             with open(lb_path) as f:
@@ -131,13 +152,13 @@ def main(warning_threshold: int = 15, model_type: str = "best"):
         model_name = "Custom Model"
 
         if model_type == "best":
-            target_model_path = base_src / 'best_model.bin'
-            model_name = "System Champion"
-        elif (base_src / f'archive/{model_type}.bin').exists():
-            target_model_path = base_src / f'archive/{model_type}.bin'
-            model_name = f"{model_type} (Archived)"
-        elif (base_src / f'{model_type}.bin').exists():
-            target_model_path = base_src / f'{model_type}.bin'
+            target_model_path = root_src / 'best_model_v2.bin'
+            model_name = "System Champion (V2)"
+        elif (root_src / f'archive_v2/{model_type}.bin').exists():
+            target_model_path = root_src / f'archive_v2/{model_type}.bin'
+            model_name = f"{model_type} (Archived V2)"
+        elif (root_src / f'{model_type}.bin').exists():
+            target_model_path = root_src / f'{model_type}.bin'
             model_name = model_type
         
         if target_model_path and target_model_path.exists():
@@ -146,8 +167,8 @@ def main(warning_threshold: int = 15, model_type: str = "best"):
             # Fallback legacy check
             legacy_map = {"rf": "RandomForest", "mlp": "NeuralNetwork", "iso": "IsolationForest"}
             alt_name = legacy_map.get(model_type, model_type)
-            if (base_src / f'archive/{alt_name}.bin').exists():
-                model = load(str(base_src / f'archive/{alt_name}.bin'))
+            if (root_src / f'archive_v2/{alt_name}.bin').exists():
+                model = load(str(root_src / f'archive_v2/{alt_name}.bin'))
                 model_name = alt_name
             else:
                 raise FileNotFoundError(f"Model {model_type} or {alt_name} not found in archive/ or root.")

@@ -1,35 +1,36 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
+# System Files
+.DS_Store
+*.pyc
+__pycache__
 .venv/
-.env
+.idea/
+.vscode/
 
-# C Binaries & Objects
+# Project Data (Large Files)
+src/output_folder/*.csv
+src/archive/*.bin
+src/archive_v2/*.bin
+src/best_model.bin
+src/best_model_v2.bin
+src/standard_scaler.bin
+src/standard_scaler_v2.bin
+src/baseline.bin
+
+# Experimental Data
+src/experimental/__pycache__/
+src/experimental/output_folder/
+
+# C-Suite Binaries
+src_c/engine
 src_c/monitor
 src_c/simulator
-src_c/engine
-*.o
-*.out
+src_c/*.o
+src_c/*.dSYM
+src_c/baseline.bin
+src_c/monitored_data.csv
 
-# Data & Models (Heavy Files)
-**/output_folder/*.csv
-**/monitored_data_c.csv
-**/archive/*.bin
-**/archive/*.pkl
-best_model.bin
-standard_scaler.bin
-
-# Analytics & Reports
+# Analytics
 src/analytics/*.png
 src/analytics/*.json
-src/analytics/*.md
-
-# Temporary / Logs
-*.log
-*.tmp
-.DS_Store
-
-# User-specific / Local
-.vscode/
-.idea/
+src/analytics_v2/*.png
+src/analytics_v2/*.json
